@@ -49,6 +49,18 @@ export default function RegistrationForm() {
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        // Validate mobile number length
+        if (mobile.length < 10 || mobile.length > 15) {
+            alert('Mobile number must be between 10 and 15 digits');
+            return;
+        }
+
+        // Validate mobile number contains only digits
+        if (!/^\d+$/.test(mobile)) {
+            alert('Mobile number must contain only digits');
+            return;
+        }
+
         try {
             const response = await fetch(`${backendUrl}/api/register`, {
                 method: 'POST',
@@ -129,8 +141,11 @@ export default function RegistrationForm() {
                         id="mobile"
                         value={mobile}
                         onChange={(e) => setMobile(e.target.value)}
-                        placeholder="1234567890"
                         inputMode="numeric"
+                        minLength={10}
+                        maxLength={15}
+                        pattern="[0-9]{10,15}"
+                        title="Enter a valid mobile number (10-15 digits)"
                         required
                     />
                 </div>
