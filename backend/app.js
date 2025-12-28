@@ -9,7 +9,17 @@ const app = express();
 // Using port 5001 to avoid conflicts
 const port = 5001;
 
-app.use(cors());
+// Configure CORS to allow requests from frontend
+const corsOptions = {
+    origin: [
+        'http://localhost:3000',
+        'https://tharbiya-registration-form-frontend.onrender.com'
+    ],
+    credentials: true,
+    optionsSuccessStatus: 200
+};
+
+app.use(cors(corsOptions));
 app.use(bodyParser.json());
 
 // --- Google Sheets Setup ---
