@@ -16,6 +16,7 @@ export default function RegistrationForm() {
     const [participated, setParticipated] = useState('');
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
+    const [showSuccess, setShowSuccess] = useState(false);
 
     const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -63,7 +64,8 @@ export default function RegistrationForm() {
             });
 
             if (response.ok) {
-                alert('നന്ദി! വിവരങ്ങൾ രേഖപ്പെടുത്തിയിരിക്കുന്നു.');
+                // Show success popup
+                setShowSuccess(true);
                 // Reset form
                 setSelectedMandalam('');
                 setSelectedName('');
@@ -162,6 +164,20 @@ export default function RegistrationForm() {
 
                 <button type="submit" className="submit-btn">Submit</button>
             </form>
+
+            {/* Success Popup Modal */}
+            {showSuccess && (
+                <div className="success-overlay" onClick={() => setShowSuccess(false)}>
+                    <div className="success-popup" onClick={(e) => e.stopPropagation()}>
+                        <div className="success-icon">✓</div>
+                        <h2 className="success-message">Registration Success!</h2>
+                        <p className="success-submessage">നിങ്ങൾക്ക് തർബിയക്ക് പങ്കെടുക്കുവാനുള്ള തൗഫീഖ് അല്ലാഹു നൽകുമാറാവട്ടെ</p>
+                        <button className="success-ok-btn" onClick={() => setShowSuccess(false)}>
+                            OK
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
