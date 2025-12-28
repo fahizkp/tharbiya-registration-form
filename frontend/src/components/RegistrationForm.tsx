@@ -17,7 +17,7 @@ export default function RegistrationForm() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    const backendUrl = 'http://localhost:5001';
+    const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
     // Fetch dropdown data from backend on mount
     useEffect(() => {

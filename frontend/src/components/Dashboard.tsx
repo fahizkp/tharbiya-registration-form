@@ -35,7 +35,7 @@ export default function Dashboard() {
     const [selectedZone, setSelectedZone] = useState<string>('all');
     const [loading, setLoading] = useState(true);
 
-    const backendUrl = 'http://localhost:5001';
+    const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
     useEffect(() => {
         if (!token) {
