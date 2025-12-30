@@ -11,12 +11,38 @@ services:
       - .env
     environment:
       - PORT=5001
+      - CORS_ORIGIN=http://tharbiya.wisdommlpe.com
+    networks:
+      - web
+      - sample-internal
 
   frontend:
     image: ghcr.io/fahizkp/tharbiya-registration-form-frontend:latest
     container_name: tharbiya-frontend
     restart: unless-stopped
     ports:
-      - "80:80"
+      - "3001:80"
     depends_on:
       - backend
+    networks:
+      - web
+      - sample-internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sample-server.rule=Host(`tharbiya.wisdommlpe.com`)"
+      - "traefik.http.routers.sample-server.entrypoints=websecure"
+      - "traefik.http.routers.sample-server.tls=true"
+      - "traefik.http.routers.sample-server.tls.certresolver=myresolver"
+      - "traefik.http.services.sample-server.loadbalancer.server.port=80"
+      # HTTP to HTTPS redirect
+      - "traefik.http.routers.sample-server-http.rule=Host(`tharbiya.wisdommlpe.com`)"
+      - "traefik.http.routers.sample-server-http.entrypoints=web"
+      - "traefik.http.routers.sample-server-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+
+networks:
+  web:
+    external: true
+  infra:
+    external: true
+  sample-internal:
