@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    container_name: tharbiya-backend
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    # Load environment variables from backend/.env
+    env_file:
+      - ./backend/.env
+    environment:
+      - PORT=5001
+      # Ensure these are set in your backend/.env:
+      # - GOOGLE_AUTH_EMAIL
+      # - GOOGLE_AUTH_PRIVATE_KEY
+      # - SPREADSHEET_ID
+      # - ADMIN_EMAIL
+      # - ADMIN_PASSWORD
+      # - JWT_SECRET
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # The URL the browser uses to talk to the backend.
+        # For local development, this is http://localhost:5001
+        - REACT_APP_API_URL=http://localhost:5001
+    container_name: tharbiya-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
