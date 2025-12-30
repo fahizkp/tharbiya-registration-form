@@ -14,7 +14,7 @@ services:
       - CORS_ORIGIN=http://tharbiya.wisdommlpe.com
     networks:
       - web
-      - sample-internal
+      - tharbiya-internal
 
   frontend:
     image: ghcr.io/fahizkp/tharbiya-registration-form-frontend:latest
@@ -26,18 +26,18 @@ services:
       - backend
     networks:
       - web
-      - sample-internal
+      - tharbiya-internal
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.sample-server.rule=Host(`tharbiya.wisdommlpe.com`)"
-      - "traefik.http.routers.sample-server.entrypoints=websecure"
-      - "traefik.http.routers.sample-server.tls=true"
-      - "traefik.http.routers.sample-server.tls.certresolver=myresolver"
-      - "traefik.http.services.sample-server.loadbalancer.server.port=80"
+      - "traefik.http.routers.tharbiya-frontend.rule=Host(`tharbiya.wisdommlpe.com`)"
+      - "traefik.http.routers.tharbiya-frontend.entrypoints=websecure"
+      - "traefik.http.routers.tharbiya-frontend.tls=true"
+      - "traefik.http.routers.tharbiya-frontend.tls.certresolver=myresolver"
+      - "traefik.http.services.tharbiya-frontend.loadbalancer.server.port=80"
       # HTTP to HTTPS redirect
-      - "traefik.http.routers.sample-server-http.rule=Host(`tharbiya.wisdommlpe.com`)"
-      - "traefik.http.routers.sample-server-http.entrypoints=web"
-      - "traefik.http.routers.sample-server-http.middlewares=redirect-to-https"
+      - "traefik.http.routers.tharbiya-frontend-http.rule=Host(`tharbiya.wisdommlpe.com`)"
+      - "traefik.http.routers.tharbiya-frontend-http.entrypoints=web"
+      - "traefik.http.routers.tharbiya-frontend-http.middlewares=redirect-to-https"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
 
 networks:
@@ -45,4 +45,4 @@ networks:
     external: true
   infra:
     external: true
-  sample-internal:
+  tharbiya-internal:
