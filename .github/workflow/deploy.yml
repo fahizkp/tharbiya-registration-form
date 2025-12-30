@@ -118,11 +118,11 @@ jobs:
             cd /srv/tharbiya-registration-form
 
             # Login to GHCR
-            echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u <your-username> --password-stdin
+            echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u fahizkp --password-stdin
 
             # Pull latest images
-            docker pull ghcr.io/<your-username>/<your-app>:latest
-            docker pull ghcr.io/<your-username>/<your-app>-api:latest
+            docker pull ghcr.io/fahizkp/tharbiya-registration-form-frontend:latest
+            docker pull ghcr.io/fahizkp/tharbiya-registration-form-backend:latest
 
             # Stop and remove old containers if exist
             docker compose down || true
