@@ -1,0 +1,132 @@
+# Build and Deploy Workflow
+#
+# Before using this workflow, replace placeholders:
+#   - <your-username>: Your GitHub username or organization
+#   - <your-app>: Your application name
+#   - <your-deploy-path>: Server deployment path (e.g., /srv/myapp)
+#
+# Required GitHub Secrets:
+#   - SSH_HOST: Deployment server hostname
+#   - SSH_USER: SSH username
+#   - SSH_PRIVATE_KEY: SSH private key
+#   - SSH_PORT: SSH port (usually 22)
+#   - GHCR_TOKEN: GitHub Container Registry token
+
+name: Build and Deploy
+
+on:
+  push:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME_FRONTEND: fahizkp/tharbiya-registration-form-frontend
+  IMAGE_NAME_API: fahizkp/tharbiya-registration-form-backend
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Build and push frontend image
+      - name: Extract metadata for Frontend
+        id: meta-frontend
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_FRONTEND }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push Frontend image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta-frontend.outputs.tags }}
+          labels: ${{ steps.meta-frontend.outputs.labels }}
+
+      # Build and push API image
+      - name: Extract metadata for API
+        id: meta-api
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME_API }}
+          tags: |
+            type=raw,value=latest
+            type=sha,prefix={{branch}}-
+
+      - name: Build and push API image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.api
+          push: true
+          tags: ${{ steps.meta-api.outputs.tags }}
+          labels: ${{ steps.meta-api.outputs.labels }}
+
+  deploy:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create deployment directory on server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: mkdir -p /srv/tharbiya-registration-form
+
+      - name: Copy docker-compose.yml to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          source: "docker-compose.yml"
+          target: "srv/tharbiya-registration-form"
+
+      - name: Deploy to server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            cd /srv/tharbiya-registration-form
+
+            # Login to GHCR
+            echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u fahizkp --password-stdin
+
+            # Pull latest images
+            docker pull ghcr.io/fahizkp/tharbiya-registration-form-frontend:latest
+            docker pull ghcr.io/fahizkp/tharbiya-registration-form-backend:latest
+
+            # Stop and remove old containers if exist
+            docker compose down || true
+
+            # Start the new containers
+            docker compose up -d
+
+            # Clean up old images
+            docker image prune -f
