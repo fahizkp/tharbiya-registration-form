@@ -88,15 +88,6 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Create deployment directory on server
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          port: ${{ secrets.SSH_PORT }}
-          script: mkdir -p /srv/tharbiya-registration-form
-
       - name: Copy docker-compose.yml to server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -105,7 +96,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           source: "docker-compose.yml"
-          target: "srv/tharbiya-registration-form"
+          target: "srv/apps/tharbiya-registration-form"
 
       - name: Deploy to server
         uses: appleboy/ssh-action@v1.0.3
@@ -115,7 +106,7 @@ jobs:
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           port: ${{ secrets.SSH_PORT }}
           script: |
-            cd /srv/tharbiya-registration-form
+            cd /srv/apps/tharbiya-registration-form
 
             # Login to GHCR
             echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u fahizkp --password-stdin
