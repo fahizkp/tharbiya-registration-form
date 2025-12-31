@@ -128,7 +128,8 @@ jobs:
             docker pull ghcr.io/fahizkp/tharbiya-frontend:latest
             docker pull ghcr.io/fahizkp/tharbiya-backend:latest
 
-            # Stop and remove old containers if exist
+            # Stop and remove old containers if exist (handling name conflicts from folder rename)
+            docker rm -f tharbiya-backend tharbiya-frontend || true
             docker compose down --remove-orphans || true
 
             # Start the new containers
