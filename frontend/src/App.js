@@ -7,7 +7,7 @@ import Dashboard from './components/Dashboard';
 import './App.css';
 
 // Protected Route wrapper
-const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
+const ProtectedRoute = ({ children }) => {
     const { isAuthenticated } = useAuth();
     return isAuthenticated ? children : <Navigate to="/login" />;
 };
@@ -15,7 +15,8 @@ const ProtectedRoute = ({ children }: { children: React.ReactElement }) => {
 function AppRoutes() {
     return (
         <Routes>
-            <Route path="/" element={<RegistrationForm />} />
+            <Route path="/" element={<Navigate to="/register" replace />} />
+            <Route path="/register" element={<RegistrationForm />} />
             <Route path="/login" element={<Login />} />
             <Route 
                 path="/admin" 

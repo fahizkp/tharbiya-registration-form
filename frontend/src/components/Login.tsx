@@ -29,6 +29,8 @@ export default function Login() {
     return (
         <div className="login-container">
             <form className="login-form" onSubmit={handleSubmit}>
+                <h1 className="main-heading">തർബിയ 2026</h1>
+                <h1 className="sub-heading">March 01</h1>
                 <h2 className="login-title">Admin Login</h2>
 
                 {error && <div className="error-message">{error}</div>}
