@@ -21,8 +21,8 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE_NAME_FRONTEND: fahizkp/tharbiya-registration-form-frontend
-  IMAGE_NAME_API: fahizkp/tharbiya-registration-form-backend
+  IMAGE_NAME_FRONTEND: fahizkp/tharbiya-frontend
+  IMAGE_NAME_API: fahizkp/tharbiya-backend
 
 jobs:
   build-and-push:
@@ -114,8 +114,8 @@ jobs:
             echo ${{ secrets.GHCR_TOKEN }} | docker login ghcr.io -u fahizkp --password-stdin
 
             # Pull latest images
-            docker pull ghcr.io/fahizkp/tharbiya-registration-form-frontend:latest
-            docker pull ghcr.io/fahizkp/tharbiya-registration-form-backend:latest
+            docker pull ghcr.io/fahizkp/tharbiya-frontend:latest
+            docker pull ghcr.io/fahizkp/tharbiya-backend:latest
 
             # Stop and remove old containers if exist
             docker compose down || true
