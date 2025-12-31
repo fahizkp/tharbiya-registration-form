@@ -90,6 +90,17 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Prepare server directory
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          port: ${{ secrets.SSH_PORT }}
+          script: |
+            mkdir -p /srv/apps/tharbiya-registration-form
+            rm -f /srv/apps/tharbiya-registration-form/docker-compose.yml
+
       - name: Copy docker-compose.yml to server
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -118,7 +129,7 @@ jobs:
             docker pull ghcr.io/fahizkp/tharbiya-backend:latest
 
             # Stop and remove old containers if exist
-            docker compose down || true
+            docker compose down --remove-orphans || true
 
             # Start the new containers
             docker compose up -d
