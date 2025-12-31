@@ -17,7 +17,9 @@ ENV REACT_APP_API_URL=$REACT_APP_API_URL
 RUN npm run build
 
 # Production Stage
-FROM nginx:alpine
-COPY --from=build /app/build /usr/share/nginx/html
-EXPOSE 80
-CMD ["nginx", "-g", "daemon off;"]
+WORKDIR /app
+RUN npm install -g serve
+COPY --from=build /app/build ./build
+
+EXPOSE 3000
+CMD ["serve", "-s", "build", "-l", "3000"]

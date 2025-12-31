@@ -2,7 +2,7 @@ version: "3.8"
 
 services:
   backend:
-    image: ghcr.io/fahizkp/tharbiya-registration-form-backend:latest
+    image: ghcr.io/fahizkp/tharbiya-backend:latest
     container_name: tharbiya-backend
     restart: unless-stopped
     env_file:
@@ -23,7 +23,7 @@ services:
       - "traefik.http.services.tharbiya-backend.loadbalancer.server.port=5001"
 
   frontend:
-    image: ghcr.io/fahizkp/tharbiya-registration-form-frontend:latest
+    image: ghcr.io/fahizkp/tharbiya-frontend:latest
     container_name: tharbiya-frontend
     restart: unless-stopped
     depends_on:
