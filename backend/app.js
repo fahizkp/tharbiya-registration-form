@@ -12,6 +12,7 @@ const port = 5001;
 // Configure CORS to allow requests from frontend
 const corsOptions = {
     origin: [
+        'http://localhost:3000',
         'http://localhost:3001',
         'https://tharbiya-registration-form-frontend.onrender.com',
         'https://tharbiya.wisdommlpe.site'
@@ -181,17 +182,49 @@ app.post('/api/auth/login', async (req, res) => {
     const { username, password } = req.body;
 
     try {
-        // Simple credential check (in production, use hashed passwords)
+        // 1. Check Master Admin (from .env)
         if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
-            const token = generateToken({ username, role: 'admin' });
-            res.json({ 
+            const token = generateToken({ username, role: 'super-admin' });
+            return res.json({ 
                 success: true,
                 token, 
-                user: { username, role: 'admin' } 
+                user: { username, role: 'super-admin' } 
             });
-        } else {
-            res.status(401).json({ success: false, error: 'Invalid credentials' });
         }
+
+        // 2. Check Sheet Admins
+        try {
+            const response = await sheets.spreadsheets.values.get({
+                spreadsheetId: SPREADSHEET_ID,
+                range: 'admin!A2:B', 
+            });
+
+            const rows = response.data.values || [];
+            
+            // Find matching user
+            const adminUser = rows.find(row => {
+                const sheetUsername = (row[0] || '').trim();
+                const sheetPassword = (row[1] || '').trim(); // Plain text as requested
+                return sheetUsername === username && sheetPassword === password;
+            });
+
+            if (adminUser) {
+                const token = generateToken({ username, role: 'admin' });
+                return res.json({ 
+                    success: true,
+                    token, 
+                    user: { username, role: 'admin' } 
+                });
+            }
+
+        } catch (sheetError) {
+            console.error('Error fetching admin sheet:', sheetError);
+            // Don't fail the whole request, just log it. 
+            // If master admin failed and sheet fetch failed, we return invalid credentials below.
+        }
+
+        res.status(401).json({ success: false, error: 'Invalid credentials' });
+
     } catch (error) {
         console.error('Login error:', error);
         res.status(500).json({ success: false, error: 'Login failed' });
