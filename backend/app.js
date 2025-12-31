@@ -12,8 +12,9 @@ const port = 5001;
 // Configure CORS to allow requests from frontend
 const corsOptions = {
     origin: [
-        'http://localhost:3000',
-        'https://tharbiya-registration-form-frontend.onrender.com'
+        'http://localhost:3001',
+        'https://tharbiya-registration-form-frontend.onrender.com',
+        'https://tharbiya.wisdommlpe.site'
     ],
     credentials: true,
     optionsSuccessStatus: 200

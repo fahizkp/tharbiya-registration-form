@@ -5,23 +5,26 @@ services:
     image: ghcr.io/fahizkp/tharbiya-registration-form-backend:latest
     container_name: tharbiya-backend
     restart: unless-stopped
-    ports:
-      - "5001:5001"
     env_file:
       - .env
     environment:
       - PORT=5001
-      - CORS_ORIGIN=http://tharbiya.wisdommlpe.com
+      - CORS_ORIGIN=https://tharbiya.wisdommlpe.site
     networks:
       - web
       - tharbiya-internal
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.tharbiya-backend.rule=Host(`tharbiya.wisdommlpe.site`) && PathPrefix(`/api`)"
+      - "traefik.http.routers.tharbiya-backend.entrypoints=websecure"
+      - "traefik.http.routers.tharbiya-backend.tls=true"
+      - "traefik.http.routers.tharbiya-backend.tls.certresolver=myresolver"
+      - "traefik.http.services.tharbiya-backend.loadbalancer.server.port=5001"
 
   frontend:
     image: ghcr.io/fahizkp/tharbiya-registration-form-frontend:latest
     container_name: tharbiya-frontend
     restart: unless-stopped
-    ports:
-      - "3001:80"
     depends_on:
       - backend
     networks:
@@ -29,13 +32,13 @@ services:
       - tharbiya-internal
     labels:
       - "traefik.enable=true"
-      - "traefik.http.routers.tharbiya-frontend.rule=Host(`tharbiya.wisdommlpe.com`)"
+      - "traefik.http.routers.tharbiya-frontend.rule=Host(`tharbiya.wisdommlpe.site`)"
       - "traefik.http.routers.tharbiya-frontend.entrypoints=websecure"
       - "traefik.http.routers.tharbiya-frontend.tls=true"
       - "traefik.http.routers.tharbiya-frontend.tls.certresolver=myresolver"
       - "traefik.http.services.tharbiya-frontend.loadbalancer.server.port=80"
       # HTTP to HTTPS redirect
-      - "traefik.http.routers.tharbiya-frontend-http.rule=Host(`tharbiya.wisdommlpe.com`)"
+      - "traefik.http.routers.tharbiya-frontend-http.rule=Host(`tharbiya.wisdommlpe.site`)"
       - "traefik.http.routers.tharbiya-frontend-http.entrypoints=web"
       - "traefik.http.routers.tharbiya-frontend-http.middlewares=redirect-to-https"
       - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"

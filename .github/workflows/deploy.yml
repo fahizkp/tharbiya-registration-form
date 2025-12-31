@@ -60,6 +60,8 @@ jobs:
           push: true
           tags: ${{ steps.meta-frontend.outputs.tags }}
           labels: ${{ steps.meta-frontend.outputs.labels }}
+          build-args: |
+            REACT_APP_API_URL=https://tharbiya.wisdommlpe.site
 
       # Build and push API image
       - name: Extract metadata for API
