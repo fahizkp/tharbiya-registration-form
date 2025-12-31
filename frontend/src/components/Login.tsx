@@ -4,7 +4,7 @@ import { useAuth } from '../contexts/AuthContext';
 import './Login.css';
 
 export default function Login() {
-    const [email, setEmail] = useState('');
+    const [username, setUsername] = useState('');
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
@@ -17,7 +17,7 @@ export default function Login() {
         setLoading(true);
 
         try {
-            await login(email, password);
+            await login(username, password);
             navigate('/admin');
         } catch (err: any) {
             setError(err.message || 'Login failed. Please check your credentials.');
@@ -36,13 +36,13 @@ export default function Login() {
                 {error && <div className="error-message">{error}</div>}
 
                 <div className="form-group">
-                    <label htmlFor="email">Email</label>
+                    <label htmlFor="username">Username</label>
                     <input
-                        type="email"
-                        id="email"
-                        value={email}
-                        onChange={(e) => setEmail(e.target.value)}
-                        placeholder="admin@tharbiya.com"
+                        type="text"
+                        id="username"
+                        value={username}
+                        onChange={(e) => setUsername(e.target.value)}
+                        placeholder="Enter username"
                         required
                     />
                 </div>

@@ -41,6 +41,4 @@ services:
 networks:
   web:
     external: true
-  infra:
-    external: true
   tharbiya-internal:

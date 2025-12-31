@@ -172,21 +172,22 @@ const { authenticateToken, generateToken } = require('./auth');
 const bcrypt = require('bcryptjs');
 
 // Admin credentials from .env
-const ADMIN_EMAIL = process.env.ADMIN_EMAIL;
+// Admin credentials from .env
+const ADMIN_USERNAME = process.env.ADMIN_USERNAME || process.env.ADMIN_EMAIL;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
 
 // 3. POST /api/auth/login - Admin login
 app.post('/api/auth/login', async (req, res) => {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
 
     try {
         // Simple credential check (in production, use hashed passwords)
-        if (email === ADMIN_EMAIL && password === ADMIN_PASSWORD) {
-            const token = generateToken({ email, role: 'admin' });
+        if (username === ADMIN_USERNAME && password === ADMIN_PASSWORD) {
+            const token = generateToken({ username, role: 'admin' });
             res.json({ 
                 success: true,
                 token, 
-                user: { email, role: 'admin' } 
+                user: { username, role: 'admin' } 
             });
         } else {
             res.status(401).json({ success: false, error: 'Invalid credentials' });
