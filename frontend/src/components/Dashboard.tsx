@@ -117,10 +117,10 @@ export default function Dashboard() {
             <div className="dashboard-sidebar">
                 <div className="sidebar-profile">
                     <div className="profile-avatar">
-                        {user?.email?.charAt(0).toUpperCase() || 'A'}
+                        {user?.username?.charAt(0).toUpperCase() || 'A'}
                     </div>
-                    <p className="profile-name">{user?.email?.split('@')[0] || 'Admin'}</p>
-                    <p className="profile-email">{user?.email || 'admin@tharbiya.com'}</p>
+                    <p className="profile-name">{user?.username || 'Admin'}</p>
+                    <p className="profile-email">{user?.username || 'admin'}</p>
                 </div>
                 <ul className="sidebar-nav">
                     <li><a href="#" className="active">Dashboard</a></li>
