@@ -27,7 +27,7 @@ interface Member {
 }
 
 export default function Dashboard() {
-    const { token, logout, user } = useAuth();
+    const { token, logout, user, isLoading } = useAuth();
     const navigate = useNavigate();
     const [stats, setStats] = useState<Stats | null>(null);
     const [zones, setZones] = useState<Zone[]>([]);
@@ -38,12 +38,15 @@ export default function Dashboard() {
     const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
     useEffect(() => {
+        // Wait for auth loading to complete
+        if (isLoading) return;
+
         if (!token) {
             navigate('/login');
             return;
         }
         fetchData();
-    }, [token, navigate]);
+    }, [token, navigate, isLoading]);
 
     useEffect(() => {
         if (token) {
@@ -95,7 +98,7 @@ export default function Dashboard() {
         navigate('/login');
     };
 
-    if (loading) {
+    if (isLoading || loading) {
         return <div className="dashboard-loading">Loading dashboard...</div>;
     }
 

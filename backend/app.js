@@ -91,13 +91,13 @@ app.get('/api/data', async (req, res) => {
             return res.json([]);
         }
 
-        // Transform to array of objects, filtering out already registered users
+        // Transform to array of objects, filtering out already registered users and those on leave
         // Row structure: [Zone, Name, Mobile, Participated, Status]
         const data = rows
             .filter(row => {
                 const status = (row[4] || '').trim();
-                // Only include if status is NOT "Success"
-                return status !== 'Success';
+                // Only include if status is NOT "Success" and NOT "Leave"
+                return status !== 'Success' && status !== 'Leave';
             })
             .map(row => ({
                 mandalam: row[0] || '',
@@ -240,8 +240,10 @@ app.get('/api/dashboard/stats', authenticateToken, async (req, res) => {
         });
 
         const rows = response.data.values || [];
-        const total = rows.length;
-        const registered = rows.filter(row => (row[4] || '').trim() === 'Success').length;
+        // Filter out rows where status is "Leave"
+        const activeRows = rows.filter(row => (row[4] || '').trim() !== 'Leave');
+        const total = activeRows.length;
+        const registered = activeRows.filter(row => (row[4] || '').trim() === 'Success').length;
         const notRegistered = total - registered;
         const percentageRegistered = total > 0 ? ((registered / total) * 100).toFixed(2) : 0;
 
@@ -267,13 +269,15 @@ app.get('/api/dashboard/zones', authenticateToken, async (req, res) => {
 
         const rows = response.data.values || [];
         
-        // Group by zone
+        // Group by zone, excluding rows with "Leave" status
         const zoneMap = {};
         rows.forEach(row => {
             const zone = (row[0] || '').trim();
             const status = (row[4] || '').trim();
             
             if (!zone) return;
+            // Skip rows where status is "Leave"
+            if (status === 'Leave') return;
             
             if (!zoneMap[zone]) {
                 zoneMap[zone] = { name: zone, total: 0, registered: 0, notRegistered: 0 };
@@ -307,15 +311,17 @@ app.get('/api/dashboard/members', authenticateToken, async (req, res) => {
 
         let rows = response.data.values || [];
         
-        // Transform to member objects
-        let members = rows.map(row => ({
-            zone: (row[0] || '').trim(),
-            name: (row[1] || '').trim(),
-            mobile: (row[2] || '').trim(),
-            participated: (row[3] || '').trim(),
-            status: (row[4] || '').trim(),
-            registered: (row[4] || '').trim() === 'Success'
-        }));
+        // Transform to member objects, excluding those with "Leave" status
+        let members = rows
+            .filter(row => (row[4] || '').trim() !== 'Leave')
+            .map(row => ({
+                zone: (row[0] || '').trim(),
+                name: (row[1] || '').trim(),
+                mobile: (row[2] || '').trim(),
+                participated: (row[3] || '').trim(),
+                status: (row[4] || '').trim(),
+                registered: (row[4] || '').trim() === 'Success'
+            }));
 
         // Filter by zone if specified
         if (zone && zone !== 'all') {
