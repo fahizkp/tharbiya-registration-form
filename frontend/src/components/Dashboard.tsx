@@ -53,6 +53,7 @@ export default function Dashboard() {
     const [showWhatsAppPreview, setShowWhatsAppPreview] = useState(false);
     const [roleStats, setRoleStats] = useState<ZoneRoleStats[]>([]);
     const [showRoleReport, setShowRoleReport] = useState(false);
+    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -191,8 +192,26 @@ export default function Dashboard() {
 
     return (
         <div className="dashboard-container">
+            {/* Mobile Menu Overlay */}
+            {isMobileMenuOpen && (
+                <div
+                    className="mobile-menu-overlay"
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    style={{
+                        position: 'fixed',
+                        top: 0,
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        background: 'rgba(0,0,0,0.5)',
+                        zIndex: 99,
+                        backdropFilter: 'blur(2px)'
+                    }}
+                />
+            )}
+
             {/* Dark Sidebar */}
-            <div className="dashboard-sidebar">
+            <div className={`dashboard-sidebar ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
                 <div className="sidebar-profile">
                     <div className="profile-avatar">
                         {user?.username?.charAt(0).toUpperCase() || 'A'}
@@ -201,8 +220,8 @@ export default function Dashboard() {
                     <p className="profile-email">{user?.username || 'admin'}</p>
                 </div>
                 <ul className="sidebar-nav">
-                    <li><a href="#" className={!showRoleReport ? "active" : ""} onClick={(e) => { e.preventDefault(); setShowRoleReport(false); }}>Dashboard</a></li>
-                    <li><a href="#" className={showRoleReport ? "active" : ""} onClick={(e) => { e.preventDefault(); setShowRoleReport(true); }}>Role Report</a></li>
+                    <li><a href="#" className={!showRoleReport ? "active" : ""} onClick={(e) => { e.preventDefault(); setShowRoleReport(false); setIsMobileMenuOpen(false); }}>Dashboard</a></li>
+                    <li><a href="#" className={showRoleReport ? "active" : ""} onClick={(e) => { e.preventDefault(); setShowRoleReport(true); setIsMobileMenuOpen(false); }}>Role Report</a></li>
                     <li><a href="/">Registration Form</a></li>
                     <li><button onClick={handleLogout} style={{
                         width: '100%',
@@ -225,7 +244,23 @@ export default function Dashboard() {
                 {!showRoleReport ? (
                     <>
                         <div className="dashboard-header">
-                            <h1>Registration Dashboard</h1>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                                <button
+                                    className="mobile-menu-btn"
+                                    onClick={() => setIsMobileMenuOpen(true)}
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        fontSize: '24px',
+                                        cursor: 'pointer',
+                                        padding: '5px',
+                                        color: '#333'
+                                    }}
+                                >
+                                    ☰
+                                </button>
+                                <h1>Registration Dashboard</h1>
+                            </div>
                         </div>
 
                         {/* Zone Header - Show when filtered */}
@@ -432,10 +467,28 @@ export default function Dashboard() {
                     <>
                         {/* Role Report Section */}
                         <div className="dashboard-header">
-                            <h1>📊 Role Registration Report</h1>
-                            <p style={{ color: '#8b93a7', fontSize: '14px', marginTop: '8px' }}>
-                                Zone-wise registration status for Secretariat and Executive members
-                            </p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', width: '100%' }}>
+                                <button
+                                    className="mobile-menu-btn"
+                                    onClick={() => setIsMobileMenuOpen(true)}
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        fontSize: '24px',
+                                        cursor: 'pointer',
+                                        padding: '5px',
+                                        color: '#333'
+                                    }}
+                                >
+                                    ☰
+                                </button>
+                                <div>
+                                    <h1>📊 Role Registration Report</h1>
+                                    <p style={{ color: '#8b93a7', fontSize: '14px', marginTop: '8px', marginBottom: 0 }}>
+                                        Zone-wise registration status for Secretariat and Executive members
+                                    </p>
+                                </div>
+                            </div>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '30px', marginTop: '30px' }}>
