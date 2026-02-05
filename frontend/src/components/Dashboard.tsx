@@ -17,6 +17,19 @@ interface Zone {
     notRegistered: number;
 }
 
+interface RoleStats {
+    total: number;
+    registered: number;
+    percentage: string;
+    isComplete: boolean;
+}
+
+interface ZoneRoleStats {
+    name: string;
+    secretariat: RoleStats;
+    executive: RoleStats;
+}
+
 interface Member {
     zone: string;
     name: string;
@@ -38,6 +51,8 @@ export default function Dashboard() {
     const [selectedRole, setSelectedRole] = useState<string>('All');
     const [loading, setLoading] = useState(true);
     const [showWhatsAppPreview, setShowWhatsAppPreview] = useState(false);
+    const [roleStats, setRoleStats] = useState<ZoneRoleStats[]>([]);
+    const [showRoleReport, setShowRoleReport] = useState(false);
 
     const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -50,6 +65,7 @@ export default function Dashboard() {
             return;
         }
         fetchData();
+        fetchRoleStats();
     }, [token, navigate, isLoading]);
 
     useEffect(() => {
@@ -96,6 +112,22 @@ export default function Dashboard() {
             console.error('Error fetching members:', error);
         }
     };
+
+    const fetchRoleStats = async () => {
+        try {
+            const response = await fetch(`${backendUrl}/api/dashboard/role-stats`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+
+            if (!response.ok) throw new Error('Failed to fetch role stats');
+
+            const data = await response.json();
+            setRoleStats(data.stats);
+        } catch (error) {
+            console.error('Error fetching role stats:', error);
+        }
+    };
+
 
     const handleLogout = () => {
         logout();
@@ -169,7 +201,8 @@ export default function Dashboard() {
                     <p className="profile-email">{user?.username || 'admin'}</p>
                 </div>
                 <ul className="sidebar-nav">
-                    <li><a href="#" className="active">Dashboard</a></li>
+                    <li><a href="#" className={!showRoleReport ? "active" : ""} onClick={(e) => { e.preventDefault(); setShowRoleReport(false); }}>Dashboard</a></li>
+                    <li><a href="#" className={showRoleReport ? "active" : ""} onClick={(e) => { e.preventDefault(); setShowRoleReport(true); }}>Role Report</a></li>
                     <li><a href="/">Registration Form</a></li>
                     <li><button onClick={handleLogout} style={{
                         width: '100%',
@@ -189,210 +222,366 @@ export default function Dashboard() {
 
             {/* Main Content */}
             <div className="dashboard-main">
-                <div className="dashboard-header">
-                    <h1>Registration Dashboard</h1>
-                </div>
-
-                {/* Zone Header - Show when filtered */}
-                {(selectedZone !== 'all' || selectedRole !== 'All') && (
-                    <div className="zone-header">
-                        <h2>
-                            {selectedZone !== 'all' && selectedZone}
-                            {selectedZone !== 'all' && selectedRole !== 'All' && ' - '}
-                            {selectedRole !== 'All' && selectedRole}
-                        </h2>
-                        <button onClick={() => { setSelectedZone('all'); setSelectedRole('All'); }} className="reset-btn">
-                            Reset Filters
-                        </button>
-                    </div>
-                )}
-
-                {/* Filters */}
-                <div className="zone-filter-section">
-                    <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
-                        {/* Zone Filter */}
-                        <div style={{ flex: '1', minWidth: '200px' }}>
-                            <label htmlFor="zone-select">Filter by Zone:</label>
-                            <select
-                                id="zone-select"
-                                value={selectedZone}
-                                onChange={(e) => {
-                                    setSelectedZone(e.target.value);
-                                    if (e.target.value === 'all') {
-                                        setSelectedRole('All');
-                                    }
-                                }}
-                                className="zone-select"
-                            >
-                                <option value="all">All Zones</option>
-                                {zones.map(zone => (
-                                    <option key={zone.name} value={zone.name}>
-                                        {zone.name} ({zone.registered}/{zone.total})
-                                    </option>
-                                ))}
-                            </select>
+                {!showRoleReport ? (
+                    <>
+                        <div className="dashboard-header">
+                            <h1>Registration Dashboard</h1>
                         </div>
 
-                        {/* Role Filter */}
-                        <div style={{ flex: '1', minWidth: '200px' }}>
-                            <label htmlFor="role-select">Filter by Role:</label>
-                            <select
-                                id="role-select"
-                                value={selectedRole}
-                                onChange={(e) => setSelectedRole(e.target.value)}
-                                className="zone-select"
-                                disabled={selectedZone === 'all'}
-                                style={{ opacity: selectedZone === 'all' ? 0.5 : 1 }}
-                            >
-                                <option value="All">All</option>
-                                <option value="Secretariat">Secretariat</option>
-                                <option value="Executive">Executive</option>
-                            </select>
-                            {selectedZone === 'all' && (
-                                <small style={{ color: '#8b93a7', marginTop: '5px', display: 'block' }}>
-                                    Please select a zone first to filter by role
-                                </small>
-                            )}
-                        </div>
-                    </div>
-                    {selectedZone !== 'all' && (
-                        <div className="zone-stats" style={{ display: 'flex', gap: '15px', alignItems: 'center', justifyContent: 'space-between' }}>
-                            <span className="zone-percentage">{filteredPercentage}% Registered</span>
-                            {notRegisteredMembers.length > 0 && (
-                                <button
-                                    onClick={copyWhatsAppMessage}
-                                    style={{
-                                        background: '#25D366',
-                                        color: 'white',
-                                        border: 'none',
-                                        padding: '10px 20px',
-                                        borderRadius: '8px',
-                                        cursor: 'pointer',
-                                        fontWeight: 600,
-                                        fontSize: '14px',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        gap: '8px',
-                                        transition: 'all 0.3s ease',
-                                        boxShadow: '0 2px 8px rgba(37, 211, 102, 0.3)'
-                                    }}
-                                    onMouseOver={(e) => e.currentTarget.style.background = '#20BA5A'}
-                                    onMouseOut={(e) => e.currentTarget.style.background = '#25D366'}
-                                >
-                                    📋 Copy WhatsApp Message ({notRegisteredMembers.length} unregistered)
+                        {/* Zone Header - Show when filtered */}
+                        {(selectedZone !== 'all' || selectedRole !== 'All') && (
+                            <div className="zone-header">
+                                <h2>
+                                    {selectedZone !== 'all' && selectedZone}
+                                    {selectedZone !== 'all' && selectedRole !== 'All' && ' - '}
+                                    {selectedRole !== 'All' && selectedRole}
+                                </h2>
+                                <button onClick={() => { setSelectedZone('all'); setSelectedRole('All'); }} className="reset-btn">
+                                    Reset Filters
                                 </button>
-                            )}
-                        </div>
-                    )}
-                </div>
-
-                {/* WhatsApp Message Preview */}
-                {selectedZone !== 'all' && notRegisteredMembers.length > 0 && (
-                    <div style={{
-                        marginTop: '20px',
-                        background: '#f8f9fa',
-                        borderRadius: '12px',
-                        padding: '20px',
-                        border: '1px solid #e0e0e0'
-                    }}>
-                        <div style={{
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'center',
-                            marginBottom: showWhatsAppPreview ? '15px' : '0'
-                        }}>
-                            <h3 style={{ margin: 0, fontSize: '16px', color: '#2c3e50' }}>
-                                📱 WhatsApp Message Preview
-                            </h3>
-                            <button
-                                onClick={() => setShowWhatsAppPreview(!showWhatsAppPreview)}
-                                style={{
-                                    background: 'transparent',
-                                    border: '1px solid #ddd',
-                                    padding: '6px 12px',
-                                    borderRadius: '6px',
-                                    cursor: 'pointer',
-                                    fontSize: '12px',
-                                    color: '#666'
-                                }}
-                            >
-                                {showWhatsAppPreview ? '▲ Hide' : '▼ Show'}
-                            </button>
-                        </div>
-                        {showWhatsAppPreview && (
-                            <div style={{
-                                background: 'white',
-                                padding: '15px',
-                                borderRadius: '8px',
-                                fontFamily: 'monospace',
-                                fontSize: '14px',
-                                whiteSpace: 'pre-wrap',
-                                border: '1px solid #e0e0e0',
-                                color: '#333',
-                                lineHeight: '1.6'
-                            }}>
-                                {generateWhatsAppMessage()}
                             </div>
                         )}
-                    </div>
+
+                        {/* Filters */}
+                        <div className="zone-filter-section">
+                            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                                {/* Zone Filter */}
+                                <div style={{ flex: '1', minWidth: '200px' }}>
+                                    <label htmlFor="zone-select">Filter by Zone:</label>
+                                    <select
+                                        id="zone-select"
+                                        value={selectedZone}
+                                        onChange={(e) => {
+                                            setSelectedZone(e.target.value);
+                                            if (e.target.value === 'all') {
+                                                setSelectedRole('All');
+                                            }
+                                        }}
+                                        className="zone-select"
+                                    >
+                                        <option value="all">All Zones</option>
+                                        {zones.map(zone => (
+                                            <option key={zone.name} value={zone.name}>
+                                                {zone.name} ({zone.registered}/{zone.total})
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                {/* Role Filter */}
+                                <div style={{ flex: '1', minWidth: '200px' }}>
+                                    <label htmlFor="role-select">Filter by Role:</label>
+                                    <select
+                                        id="role-select"
+                                        value={selectedRole}
+                                        onChange={(e) => setSelectedRole(e.target.value)}
+                                        className="zone-select"
+                                        disabled={selectedZone === 'all'}
+                                        style={{ opacity: selectedZone === 'all' ? 0.5 : 1 }}
+                                    >
+                                        <option value="All">All</option>
+                                        <option value="Secretariat">Secretariat</option>
+                                        <option value="Executive">Executive</option>
+                                    </select>
+                                    {selectedZone === 'all' && (
+                                        <small style={{ color: '#8b93a7', marginTop: '5px', display: 'block' }}>
+                                            Please select a zone first to filter by role
+                                        </small>
+                                    )}
+                                </div>
+                            </div>
+                            {selectedZone !== 'all' && (
+                                <div className="zone-stats" style={{ display: 'flex', gap: '15px', alignItems: 'center', justifyContent: 'space-between' }}>
+                                    <span className="zone-percentage">{filteredPercentage}% Registered</span>
+                                    {notRegisteredMembers.length > 0 && (
+                                        <button
+                                            onClick={copyWhatsAppMessage}
+                                            style={{
+                                                background: '#25D366',
+                                                color: 'white',
+                                                border: 'none',
+                                                padding: '10px 20px',
+                                                borderRadius: '8px',
+                                                cursor: 'pointer',
+                                                fontWeight: 600,
+                                                fontSize: '14px',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                gap: '8px',
+                                                transition: 'all 0.3s ease',
+                                                boxShadow: '0 2px 8px rgba(37, 211, 102, 0.3)'
+                                            }}
+                                            onMouseOver={(e) => e.currentTarget.style.background = '#20BA5A'}
+                                            onMouseOut={(e) => e.currentTarget.style.background = '#25D366'}
+                                        >
+                                            📋 Copy WhatsApp Message ({notRegisteredMembers.length} unregistered)
+                                        </button>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* WhatsApp Message Preview */}
+                        {selectedZone !== 'all' && notRegisteredMembers.length > 0 && (
+                            <div style={{
+                                marginTop: '20px',
+                                background: '#f8f9fa',
+                                borderRadius: '12px',
+                                padding: '20px',
+                                border: '1px solid #e0e0e0'
+                            }}>
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center',
+                                    marginBottom: showWhatsAppPreview ? '15px' : '0'
+                                }}>
+                                    <h3 style={{ margin: 0, fontSize: '16px', color: '#2c3e50' }}>
+                                        📱 WhatsApp Message Preview
+                                    </h3>
+                                    <button
+                                        onClick={() => setShowWhatsAppPreview(!showWhatsAppPreview)}
+                                        style={{
+                                            background: 'transparent',
+                                            border: '1px solid #ddd',
+                                            padding: '6px 12px',
+                                            borderRadius: '6px',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            color: '#666'
+                                        }}
+                                    >
+                                        {showWhatsAppPreview ? '▲ Hide' : '▼ Show'}
+                                    </button>
+                                </div>
+                                {showWhatsAppPreview && (
+                                    <div style={{
+                                        background: 'white',
+                                        padding: '15px',
+                                        borderRadius: '8px',
+                                        fontFamily: 'monospace',
+                                        fontSize: '14px',
+                                        whiteSpace: 'pre-wrap',
+                                        border: '1px solid #e0e0e0',
+                                        color: '#333',
+                                        lineHeight: '1.6'
+                                    }}>
+                                        {generateWhatsAppMessage()}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+
+                        {/* Stats Cards */}
+                        <div className="stats-cards">
+                            <div className="stat-card blue">
+                                <div className="stat-value">{filteredTotal}</div>
+                                <div className="stat-label">Total Members</div>
+                            </div>
+                            <div className="stat-card green">
+                                <div className="stat-value">{filteredRegistered}</div>
+                                <div className="stat-label">Registered</div>
+                                <div className="stat-percentage">{filteredPercentage}%</div>
+                            </div>
+                            <div className="stat-card orange">
+                                <div className="stat-value">{filteredNotRegistered}</div>
+                                <div className="stat-label">Not Registered</div>
+                                <div className="stat-percentage">{(100 - parseFloat(filteredPercentage)).toFixed(1)}%</div>
+                            </div>
+                        </div>
+
+                        {/* Member Lists */}
+                        <div className="member-lists">
+                            {/* Registered Members */}
+                            <div className="member-section registered">
+                                <h3>✅ Registered Members ({registeredMembers.length})</h3>
+                                {registeredMembers.length === 0 ? (
+                                    <p className="no-data">No registered members yet</p>
+                                ) : (
+                                    <ul className="member-list">
+                                        {registeredMembers.map((member, idx) => (
+                                            <li key={idx} className="member-item">
+                                                <div className="member-name">{member.name}</div>
+                                                {selectedZone === 'all' && <div className="member-zone">{member.zone}</div>}
+                                                <div className="member-mobile">{member.mobile}</div>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+
+                            {/* Not Registered Members */}
+                            <div className="member-section not-registered">
+                                <h3>❌ Not Registered ({notRegisteredMembers.length})</h3>
+                                {notRegisteredMembers.length === 0 ? (
+                                    <p className="no-data">All members have registered! 🎉</p>
+                                ) : (
+                                    <ul className="member-list">
+                                        {notRegisteredMembers.map((member, idx) => (
+                                            <li key={idx} className="member-item">
+                                                <div className="member-name">{member.name}</div>
+                                                {selectedZone === 'all' && <div className="member-zone">{member.zone}</div>}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                )}
+                            </div>
+                        </div>
+                    </>
+                ) : (
+                    <>
+                        {/* Role Report Section */}
+                        <div className="dashboard-header">
+                            <h1>📊 Role Registration Report</h1>
+                            <p style={{ color: '#8b93a7', fontSize: '14px', marginTop: '8px' }}>
+                                Zone-wise registration status for Secretariat and Executive members
+                            </p>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '30px', marginTop: '30px' }}>
+                            {/* Secretariat Report */}
+                            <div style={{
+                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                borderRadius: '16px',
+                                padding: '30px',
+                                color: 'white',
+                                boxShadow: '0 10px 30px rgba(102, 126, 234, 0.3)'
+                            }}>
+                                <h2 style={{ margin: '0 0 20px 0', fontSize: '24px', fontWeight: 700 }}>
+                                    🎯 Secretariat Members
+                                </h2>
+
+                                {/* 100% Complete Zones */}
+                                <div style={{ marginBottom: '25px' }}>
+                                    <h3 style={{ fontSize: '16px', marginBottom: '12px', opacity: 0.9 }}>
+                                        ✅ 100% Registration ({roleStats.filter(z => z.secretariat.isComplete).length} zones)
+                                    </h3>
+                                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px' }}>
+                                        {roleStats.filter(z => z.secretariat.isComplete).length > 0 ? (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                {roleStats.filter(z => z.secretariat.isComplete).map((zone, idx) => (
+                                                    <span key={idx} style={{
+                                                        background: 'rgba(255,255,255,0.25)',
+                                                        padding: '6px 12px',
+                                                        borderRadius: '20px',
+                                                        fontSize: '13px',
+                                                        fontWeight: 600
+                                                    }}>
+                                                        {zone.name} ({zone.secretariat.total})
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>No zones with 100% registration yet</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Incomplete Zones */}
+                                <div>
+                                    <h3 style={{ fontSize: '16px', marginBottom: '12px', opacity: 0.9 }}>
+                                        ⚠️ Pending Registration ({roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).length} zones)
+                                    </h3>
+                                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px', maxHeight: '400px', overflowY: 'auto' }}>
+                                        {roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).length > 0 ? (
+                                            roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).map((zone, idx) => (
+                                                <div key={idx} style={{ marginBottom: '15px', paddingBottom: '15px', borderBottom: idx < roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                        <span style={{ fontWeight: 600, fontSize: '14px' }}>{zone.name}</span>
+                                                        <span style={{ fontSize: '13px', opacity: 0.9 }}>
+                                                            {zone.secretariat.registered}/{zone.secretariat.total} ({zone.secretariat.percentage}%)
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '10px', height: '8px', overflow: 'hidden' }}>
+                                                        <div style={{
+                                                            background: parseFloat(zone.secretariat.percentage) >= 75 ? '#4ade80' : parseFloat(zone.secretariat.percentage) >= 50 ? '#fbbf24' : '#f87171',
+                                                            height: '100%',
+                                                            width: `${zone.secretariat.percentage}%`,
+                                                            transition: 'width 0.3s ease'
+                                                        }} />
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>All zones have 100% registration! 🎉</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Executive Report */}
+                            <div style={{
+                                background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                                borderRadius: '16px',
+                                padding: '30px',
+                                color: 'white',
+                                boxShadow: '0 10px 30px rgba(240, 147, 251, 0.3)'
+                            }}>
+                                <h2 style={{ margin: '0 0 20px 0', fontSize: '24px', fontWeight: 700 }}>
+                                    🎯 Executive Members
+                                </h2>
+
+                                {/* 100% Complete Zones */}
+                                <div style={{ marginBottom: '25px' }}>
+                                    <h3 style={{ fontSize: '16px', marginBottom: '12px', opacity: 0.9 }}>
+                                        ✅ 100% Registration ({roleStats.filter(z => z.executive.isComplete).length} zones)
+                                    </h3>
+                                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px' }}>
+                                        {roleStats.filter(z => z.executive.isComplete).length > 0 ? (
+                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                {roleStats.filter(z => z.executive.isComplete).map((zone, idx) => (
+                                                    <span key={idx} style={{
+                                                        background: 'rgba(255,255,255,0.25)',
+                                                        padding: '6px 12px',
+                                                        borderRadius: '20px',
+                                                        fontSize: '13px',
+                                                        fontWeight: 600
+                                                    }}>
+                                                        {zone.name} ({zone.executive.total})
+                                                    </span>
+                                                ))}
+                                            </div>
+                                        ) : (
+                                            <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>No zones with 100% registration yet</p>
+                                        )}
+                                    </div>
+                                </div>
+
+                                {/* Incomplete Zones */}
+                                <div>
+                                    <h3 style={{ fontSize: '16px', marginBottom: '12px', opacity: 0.9 }}>
+                                        ⚠️ Pending Registration ({roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).length} zones)
+                                    </h3>
+                                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px', maxHeight: '400px', overflowY: 'auto' }}>
+                                        {roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).length > 0 ? (
+                                            roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).map((zone, idx) => (
+                                                <div key={idx} style={{ marginBottom: '15px', paddingBottom: '15px', borderBottom: idx < roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                        <span style={{ fontWeight: 600, fontSize: '14px' }}>{zone.name}</span>
+                                                        <span style={{ fontSize: '13px', opacity: 0.9 }}>
+                                                            {zone.executive.registered}/{zone.executive.total} ({zone.executive.percentage}%)
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '10px', height: '8px', overflow: 'hidden' }}>
+                                                        <div style={{
+                                                            background: parseFloat(zone.executive.percentage) >= 75 ? '#4ade80' : parseFloat(zone.executive.percentage) >= 50 ? '#fbbf24' : '#f87171',
+                                                            height: '100%',
+                                                            width: `${zone.executive.percentage}%`,
+                                                            transition: 'width 0.3s ease'
+                                                        }} />
+                                                    </div>
+                                                </div>
+                                            ))
+                                        ) : (
+                                            <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>All zones have 100% registration! 🎉</p>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </>
                 )}
-
-                {/* Stats Cards */}
-                <div className="stats-cards">
-                    <div className="stat-card blue">
-                        <div className="stat-value">{filteredTotal}</div>
-                        <div className="stat-label">Total Members</div>
-                    </div>
-                    <div className="stat-card green">
-                        <div className="stat-value">{filteredRegistered}</div>
-                        <div className="stat-label">Registered</div>
-                        <div className="stat-percentage">{filteredPercentage}%</div>
-                    </div>
-                    <div className="stat-card orange">
-                        <div className="stat-value">{filteredNotRegistered}</div>
-                        <div className="stat-label">Not Registered</div>
-                        <div className="stat-percentage">{(100 - parseFloat(filteredPercentage)).toFixed(1)}%</div>
-                    </div>
-                </div>
-
-                {/* Member Lists */}
-                <div className="member-lists">
-                    {/* Registered Members */}
-                    <div className="member-section registered">
-                        <h3>✅ Registered Members ({registeredMembers.length})</h3>
-                        {registeredMembers.length === 0 ? (
-                            <p className="no-data">No registered members yet</p>
-                        ) : (
-                            <ul className="member-list">
-                                {registeredMembers.map((member, idx) => (
-                                    <li key={idx} className="member-item">
-                                        <div className="member-name">{member.name}</div>
-                                        {selectedZone === 'all' && <div className="member-zone">{member.zone}</div>}
-                                        <div className="member-mobile">{member.mobile}</div>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-
-                    {/* Not Registered Members */}
-                    <div className="member-section not-registered">
-                        <h3>❌ Not Registered ({notRegisteredMembers.length})</h3>
-                        {notRegisteredMembers.length === 0 ? (
-                            <p className="no-data">All members have registered! 🎉</p>
-                        ) : (
-                            <ul className="member-list">
-                                {notRegisteredMembers.map((member, idx) => (
-                                    <li key={idx} className="member-item">
-                                        <div className="member-name">{member.name}</div>
-                                        {selectedZone === 'all' && <div className="member-zone">{member.zone}</div>}
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
-                </div>
             </div>
-        </div>
+        </div >
     );
 }

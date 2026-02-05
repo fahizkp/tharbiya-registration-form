@@ -353,6 +353,84 @@ app.get('/api/dashboard/members', authenticateToken, async (req, res) => {
     }
 });
 
+// 7. GET /api/dashboard/role-stats - Get zone-wise role statistics (Protected)
+app.get('/api/dashboard/role-stats', authenticateToken, async (req, res) => {
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ExecutiveList!A2:G',
+        });
+
+        const rows = response.data.values || [];
+        
+        // Filter out rows with "Leave" status
+        const activeRows = rows.filter(row => (row[4] || '').trim() !== 'Leave');
+        
+        // Group by zone and calculate stats for each role
+        const zoneStats = {};
+        
+        activeRows.forEach(row => {
+            const zone = (row[0] || '').trim();
+            const status = (row[4] || '').trim();
+            const role = (row[5] || '').trim();
+            const executive = (row[6] || '').trim();
+            
+            if (!zone) return;
+            
+            if (!zoneStats[zone]) {
+                zoneStats[zone] = {
+                    name: zone,
+                    secretariat: { total: 0, registered: 0 },
+                    executive: { total: 0, registered: 0 }
+                };
+            }
+            
+            // Count Secretariat members
+            if (role === 'Secretariat') {
+                zoneStats[zone].secretariat.total++;
+                if (status === 'Success') {
+                    zoneStats[zone].secretariat.registered++;
+                }
+            }
+            
+            // Count Executive members
+            if (executive === 'Executive') {
+                zoneStats[zone].executive.total++;
+                if (status === 'Success') {
+                    zoneStats[zone].executive.registered++;
+                }
+            }
+        });
+        
+        // Convert to array and calculate percentages
+        const stats = Object.values(zoneStats).map(zone => ({
+            name: zone.name,
+            secretariat: {
+                total: zone.secretariat.total,
+                registered: zone.secretariat.registered,
+                percentage: zone.secretariat.total > 0 
+                    ? ((zone.secretariat.registered / zone.secretariat.total) * 100).toFixed(1)
+                    : 0,
+                isComplete: zone.secretariat.total > 0 && zone.secretariat.registered === zone.secretariat.total
+            },
+            executive: {
+                total: zone.executive.total,
+                registered: zone.executive.registered,
+                percentage: zone.executive.total > 0 
+                    ? ((zone.executive.registered / zone.executive.total) * 100).toFixed(1)
+                    : 0,
+                isComplete: zone.executive.total > 0 && zone.executive.registered === zone.executive.total
+            }
+        }));
+        
+        res.json({ stats });
+    } catch (error) {
+        console.error('Error fetching role stats:', error);
+        res.status(500).json({ error: 'Failed to fetch role statistics' });
+    }
+});
+
+
 app.listen(port, () => {
     console.log(`Backend server strictly running at http://localhost:${port}`);
     console.log('Press Ctrl+C to stop');
