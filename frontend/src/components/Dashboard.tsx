@@ -24,6 +24,7 @@ interface Member {
     participated: string;
     status: string;
     role: string;
+    executive: string;
     registered: boolean;
 }
 
@@ -125,6 +126,8 @@ export default function Dashboard() {
         // Header based on role filter
         if (selectedRole === 'Secretariat') {
             message = `${selectedZone} മണ്ഡലത്തിൽ സെക്രട്ടേറിയറ്റ്  അംഗങ്ങളിൽ തർബിയക്ക് രജിസ്റ്റർ ചെയ്യാത്തവർ\n\n`;
+        } else if (selectedRole === 'Executive') {
+            message = `${selectedZone} മണ്ഡലത്തിൽ എക്സിക്യൂട്ടീവ്  അംഗങ്ങളിൽ തർബിയക്ക് രജിസ്റ്റർ ചെയ്യാത്തവർ\n\n`;
         } else {
             message = `${selectedZone} മണ്ഡലത്തിൽ തർബിയക്ക് രജിസ്റ്റർ ചെയ്യാത്തവർ\n\n`;
         }
@@ -243,6 +246,7 @@ export default function Dashboard() {
                             >
                                 <option value="All">All</option>
                                 <option value="Secretariat">Secretariat</option>
+                                <option value="Executive">Executive</option>
                             </select>
                             {selectedZone === 'all' && (
                                 <small style={{ color: '#8b93a7', marginTop: '5px', display: 'block' }}>

@@ -306,7 +306,7 @@ app.get('/api/dashboard/members', authenticateToken, async (req, res) => {
         
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'ExecutiveList!A2:F',
+            range: 'ExecutiveList!A2:G',
         });
 
         let rows = response.data.values || [];
@@ -321,6 +321,7 @@ app.get('/api/dashboard/members', authenticateToken, async (req, res) => {
                 participated: (row[3] || '').trim(),
                 status: (row[4] || '').trim(),
                 role: (row[5] || '').trim(),
+                executive: (row[6] || '').trim(),
                 registered: (row[4] || '').trim() === 'Success'
             }));
 
@@ -331,7 +332,11 @@ app.get('/api/dashboard/members', authenticateToken, async (req, res) => {
 
         // Filter by role if specified
         if (role && role !== 'All') {
-            members = members.filter(m => m.role === role);
+            if (role === 'Secretariat') {
+                members = members.filter(m => m.role === role);
+            } else if (role === 'Executive') {
+                members = members.filter(m => m.executive === role);
+            }
         }
 
         // Filter by status if specified
