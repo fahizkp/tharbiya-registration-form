@@ -54,6 +54,7 @@ export default function Dashboard() {
     const [roleStats, setRoleStats] = useState<ZoneRoleStats[]>([]);
     const [showRoleReport, setShowRoleReport] = useState(false);
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+    const [roleReportFilter, setRoleReportFilter] = useState<string>('All');
 
     const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -179,6 +180,87 @@ export default function Dashboard() {
     // Copy WhatsApp message to clipboard
     const copyWhatsAppMessage = async () => {
         const message = generateWhatsAppMessage();
+        if (!message) return;
+
+        try {
+            await navigator.clipboard.writeText(message);
+            alert('WhatsApp message copied to clipboard!');
+        } catch (error) {
+            console.error('Failed to copy message:', error);
+            alert('Failed to copy message. Please try again.');
+        }
+    };
+
+    // Generate WhatsApp message for role report
+    const generateRoleReportWhatsAppMessage = () => {
+        let incompleteZones: ZoneRoleStats[] = [];
+        let roleText = '';
+
+        if (roleReportFilter === 'Secretariat') {
+            incompleteZones = roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0)
+                .sort((a, b) => parseFloat(b.secretariat.percentage) - parseFloat(a.secretariat.percentage));
+            roleText = 'സെക്രട്ടേറിയറ്റ്';
+        } else if (roleReportFilter === 'Executive') {
+            incompleteZones = roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0)
+                .sort((a, b) => parseFloat(b.executive.percentage) - parseFloat(a.executive.percentage));
+            roleText = 'എക്സിക്യൂട്ടീവ്';
+        } else {
+            // For 'All', combine both secretariat and executive incomplete zones
+            const secretariatIncomplete = roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0);
+            const executiveIncomplete = roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0);
+
+            // Create a combined list with unique zones
+            const zoneMap = new Map<string, { secretariat: boolean, executive: boolean, zone: ZoneRoleStats }>();
+
+            secretariatIncomplete.forEach(z => {
+                zoneMap.set(z.name, { secretariat: true, executive: false, zone: z });
+            });
+
+            executiveIncomplete.forEach(z => {
+                const existing = zoneMap.get(z.name);
+                if (existing) {
+                    existing.executive = true;
+                } else {
+                    zoneMap.set(z.name, { secretariat: false, executive: true, zone: z });
+                }
+            });
+
+            incompleteZones = Array.from(zoneMap.values()).map(v => v.zone);
+            roleText = '';
+        }
+
+        if (incompleteZones.length === 0) return '';
+
+        let message = roleReportFilter === 'All'
+            ? `ഇനിയും തർബിയ രജിസ്ട്രേഷൻ പൂർത്തിയാക്കാത്ത മണ്ഡലങ്ങൾ\n\n`
+            : `ഇനിയും ${roleText} തർബിയ രജിസ്ട്രേഷൻ പൂർത്തിയാക്കാത്ത മണ്ഡലങ്ങൾ\n\n`;
+
+        incompleteZones.forEach((zone, index) => {
+            if (roleReportFilter === 'Secretariat') {
+                message += `${index + 1}. ${zone.name} (${zone.secretariat.registered}/${zone.secretariat.total})\n`;
+            } else if (roleReportFilter === 'Executive') {
+                message += `${index + 1}. ${zone.name} (${zone.executive.registered}/${zone.executive.total})\n`;
+            } else {
+                // For 'All', show both if applicable
+                const secInfo = zone.secretariat.total > 0 && !zone.secretariat.isComplete
+                    ? `സെക്രട്ടേറിയറ്റ്: ${zone.secretariat.registered}/${zone.secretariat.total}`
+                    : '';
+                const execInfo = zone.executive.total > 0 && !zone.executive.isComplete
+                    ? `എക്സിക്യൂട്ടീവ്: ${zone.executive.registered}/${zone.executive.total}`
+                    : '';
+                const combined = [secInfo, execInfo].filter(s => s).join(', ');
+                message += `${index + 1}. ${zone.name} (${combined})\n`;
+            }
+        });
+
+        message += `\nഇവരെ ഫോളോ ചെയ്ത് രജിസ്റ്റർ ചെയ്യിപ്പിച്ചു റിപ്പോർട്ട് നൽകുമല്ലോ`;
+
+        return message;
+    };
+
+    // Copy role report WhatsApp message to clipboard
+    const copyRoleReportWhatsAppMessage = async () => {
+        const message = generateRoleReportWhatsAppMessage();
         if (!message) return;
 
         try {
@@ -491,150 +573,227 @@ export default function Dashboard() {
                             </div>
                         </div>
 
+                        {/* Role Report Filter and Actions */}
+                        <div style={{
+                            background: 'white',
+                            padding: '25px 30px',
+                            borderRadius: '20px',
+                            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
+                            marginBottom: '30px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '20px',
+                            flexWrap: 'wrap'
+                        }}>
+                            <div style={{ flex: '1', minWidth: '200px' }}>
+                                <label htmlFor="role-report-filter" style={{
+                                    fontWeight: 700,
+                                    color: '#667eea',
+                                    fontSize: '15px',
+                                    display: 'block',
+                                    marginBottom: '8px'
+                                }}>
+                                    Filter by Role:
+                                </label>
+                                <select
+                                    id="role-report-filter"
+                                    value={roleReportFilter}
+                                    onChange={(e) => setRoleReportFilter(e.target.value)}
+                                    className="zone-select"
+                                    style={{
+                                        width: '100%',
+                                        padding: '14px 20px',
+                                        border: '2px solid #e0e7ff',
+                                        borderRadius: '12px',
+                                        fontSize: '15px',
+                                        fontFamily: 'Noto Sans Malayalam, Quicksand, sans-serif',
+                                        cursor: 'pointer',
+                                        background: 'white',
+                                        fontWeight: 600,
+                                        color: '#333'
+                                    }}
+                                >
+                                    <option value="All">All</option>
+                                    <option value="Secretariat">Secretariat</option>
+                                    <option value="Executive">Executive</option>
+                                </select>
+                            </div>
+
+                            {generateRoleReportWhatsAppMessage() && (
+                                <button
+                                    onClick={copyRoleReportWhatsAppMessage}
+                                    style={{
+                                        background: '#25D366',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '14px 24px',
+                                        borderRadius: '12px',
+                                        cursor: 'pointer',
+                                        fontWeight: 700,
+                                        fontSize: '14px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        transition: 'all 0.3s ease',
+                                        boxShadow: '0 4px 15px rgba(37, 211, 102, 0.3)',
+                                        marginTop: 'auto'
+                                    }}
+                                    onMouseOver={(e) => e.currentTarget.style.background = '#20BA5A'}
+                                    onMouseOut={(e) => e.currentTarget.style.background = '#25D366'}
+                                >
+                                    📋 Copy WhatsApp Report
+                                </button>
+                            )}
+                        </div>
+
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(500px, 1fr))', gap: '30px', marginTop: '30px' }}>
                             {/* Secretariat Report */}
-                            <div style={{
-                                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                                borderRadius: '16px',
-                                padding: '30px',
-                                color: 'white',
-                                boxShadow: '0 10px 30px rgba(102, 126, 234, 0.3)'
-                            }}>
-                                <h2 style={{ margin: '0 0 20px 0', fontSize: '24px', fontWeight: 700 }}>
-                                    🎯 Secretariat Members
-                                </h2>
+                            {(roleReportFilter === 'All' || roleReportFilter === 'Secretariat') && (
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                                    borderRadius: '16px',
+                                    padding: '30px',
+                                    color: 'white',
+                                    boxShadow: '0 10px 30px rgba(102, 126, 234, 0.3)'
+                                }}>
+                                    <h2 style={{ margin: '0 0 20px 0', fontSize: '24px', fontWeight: 700 }}>
+                                        🎯 Secretariat Members
+                                    </h2>
 
-                                {/* 100% Complete Zones */}
-                                <div style={{ marginBottom: '25px' }}>
-                                    <h3 style={{ fontSize: '16px', marginBottom: '12px', opacity: 0.9 }}>
-                                        ✅ 100% Registration ({roleStats.filter(z => z.secretariat.isComplete).length} zones)
-                                    </h3>
-                                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px' }}>
-                                        {roleStats.filter(z => z.secretariat.isComplete).length > 0 ? (
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                                {roleStats.filter(z => z.secretariat.isComplete).map((zone, idx) => (
-                                                    <span key={idx} style={{
-                                                        background: 'rgba(255,255,255,0.25)',
-                                                        padding: '6px 12px',
-                                                        borderRadius: '20px',
-                                                        fontSize: '13px',
-                                                        fontWeight: 600
-                                                    }}>
-                                                        {zone.name} ({zone.secretariat.total})
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>No zones with 100% registration yet</p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Incomplete Zones */}
-                                <div>
-                                    <h3 style={{ fontSize: '16px', marginBottom: '12px', opacity: 0.9 }}>
-                                        ⚠️ Pending Registration ({roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).length} zones)
-                                    </h3>
-                                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px', maxHeight: '400px', overflowY: 'auto' }}>
-                                        {roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).length > 0 ? (
-                                            roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).sort((a, b) => parseFloat(b.secretariat.percentage) - parseFloat(a.secretariat.percentage)).map((zone, idx) => (
-                                                <div key={idx} style={{ marginBottom: '15px', paddingBottom: '15px', borderBottom: idx < roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                                        <span style={{ fontWeight: 600, fontSize: '16px' }}>{zone.name}</span>
-                                                        <span style={{ fontSize: '13px', opacity: 0.9 }}>
-                                                            {zone.secretariat.registered}/{zone.secretariat.total} ({zone.secretariat.percentage}%)
+                                    {/* 100% Complete Zones */}
+                                    <div style={{ marginBottom: '25px' }}>
+                                        <h3 style={{ fontSize: '16px', marginBottom: '12px', opacity: 0.9 }}>
+                                            ✅ 100% Registration ({roleStats.filter(z => z.secretariat.isComplete).length} zones)
+                                        </h3>
+                                        <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px' }}>
+                                            {roleStats.filter(z => z.secretariat.isComplete).length > 0 ? (
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                    {roleStats.filter(z => z.secretariat.isComplete).map((zone, idx) => (
+                                                        <span key={idx} style={{
+                                                            background: 'rgba(255,255,255,0.25)',
+                                                            padding: '6px 12px',
+                                                            borderRadius: '20px',
+                                                            fontSize: '13px',
+                                                            fontWeight: 600
+                                                        }}>
+                                                            {zone.name} ({zone.secretariat.total})
                                                         </span>
-                                                    </div>
-                                                    <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '10px', height: '8px', overflow: 'hidden' }}>
-                                                        <div style={{
-                                                            background: parseFloat(zone.secretariat.percentage) >= 75 ? '#4ade80' : parseFloat(zone.secretariat.percentage) >= 50 ? '#fbbf24' : '#f87171',
-                                                            height: '100%',
-                                                            width: `${zone.secretariat.percentage}%`,
-                                                            transition: 'width 0.3s ease'
-                                                        }} />
-                                                    </div>
+                                                    ))}
                                                 </div>
-                                            ))
-                                        ) : (
-                                            <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>All zones have 100% registration! 🎉</p>
-                                        )}
+                                            ) : (
+                                                <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>No zones with 100% registration yet</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Incomplete Zones */}
+                                    <div>
+                                        <h3 style={{ fontSize: '16px', marginBottom: '12px', opacity: 0.9 }}>
+                                            ⚠️ Pending Registration ({roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).length} zones)
+                                        </h3>
+                                        <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px', maxHeight: '400px', overflowY: 'auto' }}>
+                                            {roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).length > 0 ? (
+                                                roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).sort((a, b) => parseFloat(b.secretariat.percentage) - parseFloat(a.secretariat.percentage)).map((zone, idx) => (
+                                                    <div key={idx} style={{ marginBottom: '15px', paddingBottom: '15px', borderBottom: idx < roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                            <span style={{ fontWeight: 600, fontSize: '16px' }}>{zone.name}</span>
+                                                            <span style={{ fontSize: '13px', opacity: 0.9 }}>
+                                                                {zone.secretariat.registered}/{zone.secretariat.total} ({zone.secretariat.percentage}%)
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '10px', height: '8px', overflow: 'hidden' }}>
+                                                            <div style={{
+                                                                background: parseFloat(zone.secretariat.percentage) >= 75 ? '#4ade80' : parseFloat(zone.secretariat.percentage) >= 50 ? '#fbbf24' : '#f87171',
+                                                                height: '100%',
+                                                                width: `${zone.secretariat.percentage}%`,
+                                                                transition: 'width 0.3s ease'
+                                                            }} />
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>All zones have 100% registration! 🎉</p>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Executive Report */}
-                            <div style={{
-                                background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
-                                borderRadius: '16px',
-                                padding: '30px',
-                                color: 'white',
-                                boxShadow: '0 10px 30px rgba(240, 147, 251, 0.3)'
-                            }}>
-                                <h2 style={{ margin: '0 0 20px 0', fontSize: '24px', fontWeight: 700 }}>
-                                    🎯 Executive Members
-                                </h2>
+                            {(roleReportFilter === 'All' || roleReportFilter === 'Executive') && (
+                                <div style={{
+                                    background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+                                    borderRadius: '16px',
+                                    padding: '30px',
+                                    color: 'white',
+                                    boxShadow: '0 10px 30px rgba(240, 147, 251, 0.3)'
+                                }}>
+                                    <h2 style={{ margin: '0 0 20px 0', fontSize: '24px', fontWeight: 700 }}>
+                                        🎯 Executive Members
+                                    </h2>
 
-                                {/* 100% Complete Zones */}
-                                <div style={{ marginBottom: '25px' }}>
-                                    <h3 style={{ fontSize: '16px', marginBottom: '12px', opacity: 0.9 }}>
-                                        ✅ 100% Registration ({roleStats.filter(z => z.executive.isComplete).length} zones)
-                                    </h3>
-                                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px' }}>
-                                        {roleStats.filter(z => z.executive.isComplete).length > 0 ? (
-                                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                                                {roleStats.filter(z => z.executive.isComplete).map((zone, idx) => (
-                                                    <span key={idx} style={{
-                                                        background: 'rgba(255,255,255,0.25)',
-                                                        padding: '6px 12px',
-                                                        borderRadius: '20px',
-                                                        fontSize: '13px',
-                                                        fontWeight: 600
-                                                    }}>
-                                                        {zone.name} ({zone.executive.total})
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        ) : (
-                                            <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>No zones with 100% registration yet</p>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Incomplete Zones */}
-                                <div>
-                                    <h3 style={{ fontSize: '16px', marginBottom: '12px', opacity: 0.9 }}>
-                                        ⚠️ Pending Registration ({roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).length} zones)
-                                    </h3>
-                                    <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px', maxHeight: '400px', overflowY: 'auto' }}>
-                                        {roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).length > 0 ? (
-                                            roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).sort((a, b) => parseFloat(b.executive.percentage) - parseFloat(a.executive.percentage)).map((zone, idx) => (
-                                                <div key={idx} style={{ marginBottom: '15px', paddingBottom: '15px', borderBottom: idx < roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                                        <span style={{ fontWeight: 600, fontSize: '16px' }}>{zone.name}</span>
-                                                        <span style={{ fontSize: '13px', opacity: 0.9 }}>
-                                                            {zone.executive.registered}/{zone.executive.total} ({zone.executive.percentage}%)
+                                    {/* 100% Complete Zones */}
+                                    <div style={{ marginBottom: '25px' }}>
+                                        <h3 style={{ fontSize: '16px', marginBottom: '12px', opacity: 0.9 }}>
+                                            ✅ 100% Registration ({roleStats.filter(z => z.executive.isComplete).length} zones)
+                                        </h3>
+                                        <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px' }}>
+                                            {roleStats.filter(z => z.executive.isComplete).length > 0 ? (
+                                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                                    {roleStats.filter(z => z.executive.isComplete).map((zone, idx) => (
+                                                        <span key={idx} style={{
+                                                            background: 'rgba(255,255,255,0.25)',
+                                                            padding: '6px 12px',
+                                                            borderRadius: '20px',
+                                                            fontSize: '13px',
+                                                            fontWeight: 600
+                                                        }}>
+                                                            {zone.name} ({zone.executive.total})
                                                         </span>
-                                                    </div>
-                                                    <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '10px', height: '8px', overflow: 'hidden' }}>
-                                                        <div style={{
-                                                            background: parseFloat(zone.executive.percentage) >= 75 ? '#4ade80' : parseFloat(zone.executive.percentage) >= 50 ? '#fbbf24' : '#f87171',
-                                                            height: '100%',
-                                                            width: `${zone.executive.percentage}%`,
-                                                            transition: 'width 0.3s ease'
-                                                        }} />
-                                                    </div>
+                                                    ))}
                                                 </div>
-                                            ))
-                                        ) : (
-                                            <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>All zones have 100% registration! 🎉</p>
-                                        )}
+                                            ) : (
+                                                <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>No zones with 100% registration yet</p>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    {/* Incomplete Zones */}
+                                    <div>
+                                        <h3 style={{ fontSize: '16px', marginBottom: '12px', opacity: 0.9 }}>
+                                            ⚠️ Pending Registration ({roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).length} zones)
+                                        </h3>
+                                        <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px', maxHeight: '400px', overflowY: 'auto' }}>
+                                            {roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).length > 0 ? (
+                                                roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).sort((a, b) => parseFloat(b.executive.percentage) - parseFloat(a.executive.percentage)).map((zone, idx) => (
+                                                    <div key={idx} style={{ marginBottom: '15px', paddingBottom: '15px', borderBottom: idx < roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                            <span style={{ fontWeight: 600, fontSize: '16px' }}>{zone.name}</span>
+                                                            <span style={{ fontSize: '13px', opacity: 0.9 }}>
+                                                                {zone.executive.registered}/{zone.executive.total} ({zone.executive.percentage}%)
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ background: 'rgba(255,255,255,0.2)', borderRadius: '10px', height: '8px', overflow: 'hidden' }}>
+                                                            <div style={{
+                                                                background: parseFloat(zone.executive.percentage) >= 75 ? '#4ade80' : parseFloat(zone.executive.percentage) >= 50 ? '#fbbf24' : '#f87171',
+                                                                height: '100%',
+                                                                width: `${zone.executive.percentage}%`,
+                                                                transition: 'width 0.3s ease'
+                                                            }} />
+                                                        </div>
+                                                    </div>
+                                                ))
+                                            ) : (
+                                                <p style={{ margin: 0, opacity: 0.7, fontSize: '14px' }}>All zones have 100% registration! 🎉</p>
+                                            )}
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
                         </div>
                     </>
                 )}
             </div>
-        </div >
+        </div>
     );
 }
