@@ -23,6 +23,7 @@ interface Member {
     mobile: string;
     participated: string;
     status: string;
+    role: string;
     registered: boolean;
 }
 
@@ -33,7 +34,9 @@ export default function Dashboard() {
     const [zones, setZones] = useState<Zone[]>([]);
     const [members, setMembers] = useState<Member[]>([]);
     const [selectedZone, setSelectedZone] = useState<string>('all');
+    const [selectedRole, setSelectedRole] = useState<string>('All');
     const [loading, setLoading] = useState(true);
+    const [showWhatsAppPreview, setShowWhatsAppPreview] = useState(false);
 
     const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -52,7 +55,7 @@ export default function Dashboard() {
         if (token) {
             fetchMembers();
         }
-    }, [selectedZone, token]);
+    }, [selectedZone, selectedRole, token]);
 
     const fetchData = async () => {
         try {
@@ -79,7 +82,7 @@ export default function Dashboard() {
 
     const fetchMembers = async () => {
         try {
-            const url = `${backendUrl}/api/dashboard/members?zone=${selectedZone}`;
+            const url = `${backendUrl}/api/dashboard/members?zone=${selectedZone}&role=${selectedRole}`;
             const response = await fetch(url, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -105,14 +108,51 @@ export default function Dashboard() {
     const registeredMembers = members.filter(m => m.registered);
     const notRegisteredMembers = members.filter(m => !m.registered);
 
-    // Get current zone stats
-    const currentZoneStats = selectedZone === 'all'
-        ? stats
-        : zones.find(z => z.name === selectedZone);
+    // Calculate stats based on filtered members
+    const filteredTotal = members.length;
+    const filteredRegistered = registeredMembers.length;
+    const filteredNotRegistered = notRegisteredMembers.length;
+    const filteredPercentage = filteredTotal > 0
+        ? ((filteredRegistered / filteredTotal) * 100).toFixed(1)
+        : '0';
 
-    const currentPercentage = currentZoneStats
-        ? ((currentZoneStats.registered / currentZoneStats.total) * 100).toFixed(1)
-        : 0;
+    // Generate WhatsApp message
+    const generateWhatsAppMessage = () => {
+        if (selectedZone === 'all') return '';
+
+        let message = '';
+
+        // Header based on role filter
+        if (selectedRole === 'Secretariat') {
+            message = `${selectedZone} മണ്ഡലത്തിൽ സെക്രട്ടേറിയറ്റ്  അംഗങ്ങളിൽ തർബിയക്ക് രജിസ്റ്റർ ചെയ്യാത്തവർ\n\n`;
+        } else {
+            message = `${selectedZone} മണ്ഡലത്തിൽ തർബിയക്ക് രജിസ്റ്റർ ചെയ്യാത്തവർ\n\n`;
+        }
+
+        // Add numbered list of unregistered members
+        notRegisteredMembers.forEach((member, index) => {
+            message += `${index + 1}. ${member.name}\n`;
+        });
+
+        // Add footer
+        message += `\nഇവരെ ഫോളോ ചെയ്ത് രജിസ്റ്റർ ചെയ്യിപ്പിച്ചു റിപ്പോർട്ട് നൽകുമല്ലോ`;
+
+        return message;
+    };
+
+    // Copy WhatsApp message to clipboard
+    const copyWhatsAppMessage = async () => {
+        const message = generateWhatsAppMessage();
+        if (!message) return;
+
+        try {
+            await navigator.clipboard.writeText(message);
+            alert('WhatsApp message copied to clipboard!');
+        } catch (error) {
+            console.error('Failed to copy message:', error);
+            alert('Failed to copy message. Please try again.');
+        }
+    };
 
     return (
         <div className="dashboard-container">
@@ -151,53 +191,163 @@ export default function Dashboard() {
                 </div>
 
                 {/* Zone Header - Show when filtered */}
-                {selectedZone !== 'all' && (
+                {(selectedZone !== 'all' || selectedRole !== 'All') && (
                     <div className="zone-header">
-                        <h2>{selectedZone}</h2>
-                        <button onClick={() => setSelectedZone('all')} className="reset-btn">
-                            Reset Filter
+                        <h2>
+                            {selectedZone !== 'all' && selectedZone}
+                            {selectedZone !== 'all' && selectedRole !== 'All' && ' - '}
+                            {selectedRole !== 'All' && selectedRole}
+                        </h2>
+                        <button onClick={() => { setSelectedZone('all'); setSelectedRole('All'); }} className="reset-btn">
+                            Reset Filters
                         </button>
                     </div>
                 )}
 
-                {/* Zone Filter */}
+                {/* Filters */}
                 <div className="zone-filter-section">
-                    <label htmlFor="zone-select">Filter by Zone:</label>
-                    <select
-                        id="zone-select"
-                        value={selectedZone}
-                        onChange={(e) => setSelectedZone(e.target.value)}
-                        className="zone-select"
-                    >
-                        <option value="all">All Zones</option>
-                        {zones.map(zone => (
-                            <option key={zone.name} value={zone.name}>
-                                {zone.name} ({zone.registered}/{zone.total})
-                            </option>
-                        ))}
-                    </select>
+                    <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
+                        {/* Zone Filter */}
+                        <div style={{ flex: '1', minWidth: '200px' }}>
+                            <label htmlFor="zone-select">Filter by Zone:</label>
+                            <select
+                                id="zone-select"
+                                value={selectedZone}
+                                onChange={(e) => {
+                                    setSelectedZone(e.target.value);
+                                    if (e.target.value === 'all') {
+                                        setSelectedRole('All');
+                                    }
+                                }}
+                                className="zone-select"
+                            >
+                                <option value="all">All Zones</option>
+                                {zones.map(zone => (
+                                    <option key={zone.name} value={zone.name}>
+                                        {zone.name} ({zone.registered}/{zone.total})
+                                    </option>
+                                ))}
+                            </select>
+                        </div>
+
+                        {/* Role Filter */}
+                        <div style={{ flex: '1', minWidth: '200px' }}>
+                            <label htmlFor="role-select">Filter by Role:</label>
+                            <select
+                                id="role-select"
+                                value={selectedRole}
+                                onChange={(e) => setSelectedRole(e.target.value)}
+                                className="zone-select"
+                                disabled={selectedZone === 'all'}
+                                style={{ opacity: selectedZone === 'all' ? 0.5 : 1 }}
+                            >
+                                <option value="All">All</option>
+                                <option value="Secretariat">Secretariat</option>
+                            </select>
+                            {selectedZone === 'all' && (
+                                <small style={{ color: '#8b93a7', marginTop: '5px', display: 'block' }}>
+                                    Please select a zone first to filter by role
+                                </small>
+                            )}
+                        </div>
+                    </div>
                     {selectedZone !== 'all' && (
-                        <div className="zone-stats">
-                            <span className="zone-percentage">{currentPercentage}% Registered</span>
+                        <div className="zone-stats" style={{ display: 'flex', gap: '15px', alignItems: 'center', justifyContent: 'space-between' }}>
+                            <span className="zone-percentage">{filteredPercentage}% Registered</span>
+                            {notRegisteredMembers.length > 0 && (
+                                <button
+                                    onClick={copyWhatsAppMessage}
+                                    style={{
+                                        background: '#25D366',
+                                        color: 'white',
+                                        border: 'none',
+                                        padding: '10px 20px',
+                                        borderRadius: '8px',
+                                        cursor: 'pointer',
+                                        fontWeight: 600,
+                                        fontSize: '14px',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '8px',
+                                        transition: 'all 0.3s ease',
+                                        boxShadow: '0 2px 8px rgba(37, 211, 102, 0.3)'
+                                    }}
+                                    onMouseOver={(e) => e.currentTarget.style.background = '#20BA5A'}
+                                    onMouseOut={(e) => e.currentTarget.style.background = '#25D366'}
+                                >
+                                    📋 Copy WhatsApp Message ({notRegisteredMembers.length} unregistered)
+                                </button>
+                            )}
                         </div>
                     )}
                 </div>
 
+                {/* WhatsApp Message Preview */}
+                {selectedZone !== 'all' && notRegisteredMembers.length > 0 && (
+                    <div style={{
+                        marginTop: '20px',
+                        background: '#f8f9fa',
+                        borderRadius: '12px',
+                        padding: '20px',
+                        border: '1px solid #e0e0e0'
+                    }}>
+                        <div style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            marginBottom: showWhatsAppPreview ? '15px' : '0'
+                        }}>
+                            <h3 style={{ margin: 0, fontSize: '16px', color: '#2c3e50' }}>
+                                📱 WhatsApp Message Preview
+                            </h3>
+                            <button
+                                onClick={() => setShowWhatsAppPreview(!showWhatsAppPreview)}
+                                style={{
+                                    background: 'transparent',
+                                    border: '1px solid #ddd',
+                                    padding: '6px 12px',
+                                    borderRadius: '6px',
+                                    cursor: 'pointer',
+                                    fontSize: '12px',
+                                    color: '#666'
+                                }}
+                            >
+                                {showWhatsAppPreview ? '▲ Hide' : '▼ Show'}
+                            </button>
+                        </div>
+                        {showWhatsAppPreview && (
+                            <div style={{
+                                background: 'white',
+                                padding: '15px',
+                                borderRadius: '8px',
+                                fontFamily: 'monospace',
+                                fontSize: '14px',
+                                whiteSpace: 'pre-wrap',
+                                border: '1px solid #e0e0e0',
+                                color: '#333',
+                                lineHeight: '1.6'
+                            }}>
+                                {generateWhatsAppMessage()}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Stats Cards */}
                 <div className="stats-cards">
                     <div className="stat-card blue">
-                        <div className="stat-value">{currentZoneStats?.total || 0}</div>
+                        <div className="stat-value">{filteredTotal}</div>
                         <div className="stat-label">Total Members</div>
                     </div>
                     <div className="stat-card green">
-                        <div className="stat-value">{currentZoneStats?.registered || 0}</div>
+                        <div className="stat-value">{filteredRegistered}</div>
                         <div className="stat-label">Registered</div>
-                        <div className="stat-percentage">{currentPercentage}%</div>
+                        <div className="stat-percentage">{filteredPercentage}%</div>
                     </div>
                     <div className="stat-card orange">
-                        <div className="stat-value">{currentZoneStats?.notRegistered || 0}</div>
+                        <div className="stat-value">{filteredNotRegistered}</div>
                         <div className="stat-label">Not Registered</div>
-                        <div className="stat-percentage">{(100 - parseFloat(currentPercentage.toString())).toFixed(1)}%</div>
+                        <div className="stat-percentage">{(100 - parseFloat(filteredPercentage)).toFixed(1)}%</div>
                     </div>
                 </div>
 

@@ -302,11 +302,11 @@ app.get('/api/dashboard/zones', authenticateToken, async (req, res) => {
 // 6. GET /api/dashboard/members - Get member list with filtering (Protected)
 app.get('/api/dashboard/members', authenticateToken, async (req, res) => {
     try {
-        const { zone, status } = req.query;
+        const { zone, status, role } = req.query;
         
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'ExecutiveList!A2:E',
+            range: 'ExecutiveList!A2:F',
         });
 
         let rows = response.data.values || [];
@@ -320,12 +320,18 @@ app.get('/api/dashboard/members', authenticateToken, async (req, res) => {
                 mobile: (row[2] || '').trim(),
                 participated: (row[3] || '').trim(),
                 status: (row[4] || '').trim(),
+                role: (row[5] || '').trim(),
                 registered: (row[4] || '').trim() === 'Success'
             }));
 
         // Filter by zone if specified
         if (zone && zone !== 'all') {
             members = members.filter(m => m.zone.toLowerCase() === zone.toLowerCase());
+        }
+
+        // Filter by role if specified
+        if (role && role !== 'All') {
+            members = members.filter(m => m.role === role);
         }
 
         // Filter by status if specified
