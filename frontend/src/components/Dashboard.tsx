@@ -537,10 +537,10 @@ export default function Dashboard() {
                                     </h3>
                                     <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px', maxHeight: '400px', overflowY: 'auto' }}>
                                         {roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).length > 0 ? (
-                                            roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).map((zone, idx) => (
+                                            roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).sort((a, b) => parseFloat(b.secretariat.percentage) - parseFloat(a.secretariat.percentage)).map((zone, idx) => (
                                                 <div key={idx} style={{ marginBottom: '15px', paddingBottom: '15px', borderBottom: idx < roleStats.filter(z => !z.secretariat.isComplete && z.secretariat.total > 0).length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                                        <span style={{ fontWeight: 600, fontSize: '14px' }}>{zone.name}</span>
+                                                        <span style={{ fontWeight: 600, fontSize: '16px' }}>{zone.name}</span>
                                                         <span style={{ fontSize: '13px', opacity: 0.9 }}>
                                                             {zone.secretariat.registered}/{zone.secretariat.total} ({zone.secretariat.percentage}%)
                                                         </span>
@@ -607,10 +607,10 @@ export default function Dashboard() {
                                     </h3>
                                     <div style={{ background: 'rgba(255,255,255,0.15)', borderRadius: '12px', padding: '15px', maxHeight: '400px', overflowY: 'auto' }}>
                                         {roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).length > 0 ? (
-                                            roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).map((zone, idx) => (
+                                            roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).sort((a, b) => parseFloat(b.executive.percentage) - parseFloat(a.executive.percentage)).map((zone, idx) => (
                                                 <div key={idx} style={{ marginBottom: '15px', paddingBottom: '15px', borderBottom: idx < roleStats.filter(z => !z.executive.isComplete && z.executive.total > 0).length - 1 ? '1px solid rgba(255,255,255,0.1)' : 'none' }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                                        <span style={{ fontWeight: 600, fontSize: '14px' }}>{zone.name}</span>
+                                                        <span style={{ fontWeight: 600, fontSize: '16px' }}>{zone.name}</span>
                                                         <span style={{ fontSize: '13px', opacity: 0.9 }}>
                                                             {zone.executive.registered}/{zone.executive.total} ({zone.executive.percentage}%)
                                                         </span>
