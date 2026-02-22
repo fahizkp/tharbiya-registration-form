@@ -39,7 +39,19 @@ interface Member {
     role: string;
     executive: string;
     registered: boolean;
+    callStatus?: string;
+    callRemarks?: string;
 }
+
+const CALL_STATUS_OPTIONS = [
+    { value: '', label: 'Select Status' },
+    { value: 'vilichu_pankedukkum', label: 'വിളിച്ചു, പങ്കെടുക്കും' },
+    { value: 'vilichu_pankedukkilla', label: 'വിളിച്ചു, പങ്കെടുക്കില്ല' },
+    { value: 'phone_eduthilla_whatsapp', label: 'ഫോൺ എടുത്തില്ല, വാട്സാപ്പ് അയച്ചു' },
+    { value: 'phone_eduthilla', label: 'ഫോൺ എടുത്തില്ല' },
+    { value: 'call_pokunnilla', label: 'കോൾ പോകുന്നില്ല' },
+    { value: 'mattullava', label: 'മറ്റുള്ളവ' }
+];
 
 export default function Dashboard() {
     const { token, logout, user, isLoading } = useAuth();
@@ -52,9 +64,11 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [showWhatsAppPreview, setShowWhatsAppPreview] = useState(false);
     const [roleStats, setRoleStats] = useState<ZoneRoleStats[]>([]);
-    const [showRoleReport, setShowRoleReport] = useState(false);
+    const [view, setView] = useState<'dashboard' | 'roleReport' | 'callCampaign'>('dashboard');
+    const [campaignMessage, setCampaignMessage] = useState('Assalamu Alaikum, please register for the Tharbiya program.');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [roleReportFilter, setRoleReportFilter] = useState<string>('All');
+    const [campaignStatus, setCampaignStatus] = useState<'all' | 'registered' | 'notRegistered'>('notRegistered');
 
     const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -115,6 +129,38 @@ export default function Dashboard() {
         }
     };
 
+    const updateCallStatus = async (member: Member, status: string, remarks: string) => {
+        try {
+            // Update local state first for immediate UI response
+            setMembers(prevMembers => prevMembers.map(m => {
+                if (m.zone === member.zone && m.name === member.name) {
+                    return { ...m, callStatus: status, callRemarks: remarks };
+                }
+                return m;
+            }));
+
+            const response = await fetch(`${backendUrl}/api/call-status`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({
+                    zone: member.zone,
+                    name: member.name,
+                    callStatus: status,
+                    remarks: remarks
+                })
+            });
+
+            if (!response.ok) throw new Error('Failed to update call status');
+
+        } catch (error) {
+            console.error('Error updating call status:', error);
+            alert('Failed to save call status. Please try again.');
+        }
+    };
+
     const fetchRoleStats = async () => {
         try {
             const response = await fetch(`${backendUrl}/api/dashboard/role-stats`, {
@@ -142,6 +188,13 @@ export default function Dashboard() {
 
     const registeredMembers = members.filter(m => m.registered);
     const notRegisteredMembers = members.filter(m => !m.registered);
+
+    // Filter members for campaign view
+    const campaignMembers = members.filter(m => {
+        if (campaignStatus === 'registered') return m.registered;
+        if (campaignStatus === 'notRegistered') return !m.registered;
+        return true;
+    });
 
     // Calculate stats based on filtered members
     const filteredTotal = members.length;
@@ -302,8 +355,9 @@ export default function Dashboard() {
                     <p className="profile-email">{user?.username || 'admin'}</p>
                 </div>
                 <ul className="sidebar-nav">
-                    <li><a href="#" className={!showRoleReport ? "active" : ""} onClick={(e) => { e.preventDefault(); setShowRoleReport(false); setIsMobileMenuOpen(false); }}>Dashboard</a></li>
-                    <li><a href="#" className={showRoleReport ? "active" : ""} onClick={(e) => { e.preventDefault(); setShowRoleReport(true); setIsMobileMenuOpen(false); }}>Role Report</a></li>
+                    <li><a href="#" className={view === 'dashboard' ? "active" : ""} onClick={(e) => { e.preventDefault(); setView('dashboard'); setIsMobileMenuOpen(false); }}>Dashboard</a></li>
+                    <li><a href="#" className={view === 'roleReport' ? "active" : ""} onClick={(e) => { e.preventDefault(); setView('roleReport'); setIsMobileMenuOpen(false); }}>Role Report</a></li>
+                    <li><a href="#" className={view === 'callCampaign' ? "active" : ""} onClick={(e) => { e.preventDefault(); setView('callCampaign'); setSelectedRole('All'); setIsMobileMenuOpen(false); }}>Call Campaign</a></li>
                     <li><a href="/">Registration Form</a></li>
                     <li><button onClick={handleLogout} style={{
                         width: '100%',
@@ -323,7 +377,7 @@ export default function Dashboard() {
 
             {/* Main Content */}
             <div className="dashboard-main">
-                {!showRoleReport ? (
+                {view === 'dashboard' && (
                     <>
                         <div className="dashboard-header">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
@@ -545,9 +599,11 @@ export default function Dashboard() {
                             </div>
                         </div>
                     </>
-                ) : (
+                )}
+
+                {/* Role Report Section */}
+                {view === 'roleReport' && (
                     <>
-                        {/* Role Report Section */}
                         <div className="dashboard-header">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '15px', width: '100%' }}>
                                 <button
@@ -793,7 +849,210 @@ export default function Dashboard() {
                         </div>
                     </>
                 )}
+
+                {/* Call Campaign Section */}
+                {view === 'callCampaign' && (
+                    <>
+                        <div className="dashboard-header">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', width: '100%' }}>
+                                <button
+                                    className="mobile-menu-btn"
+                                    onClick={() => setIsMobileMenuOpen(true)}
+                                    style={{
+                                        background: 'transparent',
+                                        border: 'none',
+                                        fontSize: '24px',
+                                        cursor: 'pointer',
+                                        padding: '5px',
+                                        color: '#333'
+                                    }}
+                                >
+                                    ☰
+                                </button>
+                                <h1>📞 Call Campaign</h1>
+                            </div>
+                        </div>
+
+                        {/* Zone Filter & Message Config */}
+                        <div style={{
+                            background: 'white',
+                            padding: '25px',
+                            borderRadius: '20px',
+                            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.05)',
+                            marginBottom: '30px',
+                        }}>
+                            <div style={{ marginBottom: '20px' }}>
+                                <label htmlFor="campaign-zone-select" style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>Select Zone:</label>
+                                <select
+                                    id="campaign-zone-select"
+                                    value={selectedZone}
+                                    onChange={(e) => {
+                                        setSelectedZone(e.target.value);
+                                        if (e.target.value === 'all') {
+                                            setSelectedRole('All');
+                                        }
+                                    }}
+                                    className="zone-select"
+                                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', maxWidth: '300px' }}
+                                >
+                                    <option value="all">All Zones</option>
+                                    {zones.map(zone => (
+                                        <option key={zone.name} value={zone.name}>
+                                            {zone.name}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div style={{ marginBottom: '20px' }}>
+                                <label htmlFor="campaign-status-select" style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>Registration Status:</label>
+                                <select
+                                    id="campaign-status-select"
+                                    value={campaignStatus}
+                                    onChange={(e) => setCampaignStatus(e.target.value as any)}
+                                    className="zone-select"
+                                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', maxWidth: '300px' }}
+                                >
+                                    <option value="all">All</option>
+                                    <option value="registered">Registered</option>
+                                    <option value="notRegistered">Not Registered</option>
+                                </select>
+                            </div>
+
+                            <div style={{ marginBottom: '10px' }}>
+                                <label style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>WhatsApp Message Template:</label>
+                                <textarea
+                                    value={campaignMessage}
+                                    onChange={(e) => setCampaignMessage(e.target.value)}
+                                    placeholder="Enter default message..."
+                                    style={{
+                                        width: '100%',
+                                        padding: '12px',
+                                        borderRadius: '8px',
+                                        border: '1px solid #ddd',
+                                        minHeight: '80px',
+                                        fontFamily: 'inherit'
+                                    }}
+                                />
+                            </div>
+                        </div>
+
+                        {/* Campaign List */}
+                        <div className="members-list">
+                            <h3>📞 Call List - {selectedZone === 'all' ? 'All Zones' : selectedZone} ({campaignMembers.length})</h3>
+
+                            {campaignMembers.length === 0 ? (
+                                <p className="no-data">No members found matching criteria!</p>
+                            ) : (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px', marginTop: '20px' }}>
+                                    {campaignMembers.map((member, idx) => (
+                                        <div key={idx} style={{
+                                            background: 'white',
+                                            padding: '20px',
+                                            borderRadius: '12px',
+                                            boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
+                                            border: '1px solid #eee'
+                                        }}>
+                                            <div style={{ fontWeight: 700, fontSize: '18px', marginBottom: '5px' }}>{member.name}</div>
+                                            <div style={{ color: '#666', fontSize: '14px', marginBottom: '5px' }}>{member.zone}</div>
+                                            <div style={{ color: '#888', fontSize: '14px', marginBottom: '15px' }}>{member.mobile || 'No Mobile'}</div>
+
+                                            {/* Call Status Dropdown */}
+                                            <div style={{ marginBottom: '15px' }}>
+                                                <select
+                                                    value={member.callStatus || ''}
+                                                    onChange={(e) => updateCallStatus(member, e.target.value, member.callRemarks || '')}
+                                                    style={{
+                                                        width: '100%',
+                                                        padding: '10px',
+                                                        borderRadius: '8px',
+                                                        border: '1px solid #ddd',
+                                                        marginBottom: '10px',
+                                                        fontSize: '14px',
+                                                        fontFamily: 'Noto Sans Malayalam, sans-serif'
+                                                    }}
+                                                >
+                                                    {CALL_STATUS_OPTIONS.map(opt => (
+                                                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                                                    ))}
+                                                </select>
+
+                                                {(member.callStatus === 'vilichu_pankedukkilla' || member.callStatus === 'mattullava') && (
+                                                    <textarea
+                                                        placeholder="Reason / Notes..."
+                                                        value={member.callRemarks || ''}
+                                                        onChange={(e) => {
+                                                            // Update local state immediately for smooth typing
+                                                            const newRemarks = e.target.value;
+                                                            setMembers(prev => prev.map(m =>
+                                                                (m.zone === member.zone && m.name === member.name)
+                                                                    ? { ...m, callRemarks: newRemarks }
+                                                                    : m
+                                                            ));
+                                                        }}
+                                                        onBlur={(e) => updateCallStatus(member, member.callStatus || '', e.target.value)}
+                                                        style={{
+                                                            width: '100%',
+                                                            padding: '10px',
+                                                            borderRadius: '8px',
+                                                            border: '1px solid #ddd',
+                                                            minHeight: '60px',
+                                                            fontSize: '14px',
+                                                            fontFamily: 'inherit'
+                                                        }}
+                                                    />
+                                                )}
+                                            </div>
+
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                {member.mobile && (
+                                                    <>
+                                                        <a
+                                                            href={`tel:${member.mobile}`}
+                                                            style={{
+                                                                flex: 1,
+                                                                textAlign: 'center',
+                                                                padding: '10px',
+                                                                background: '#3B82F6',
+                                                                color: 'white',
+                                                                borderRadius: '8px',
+                                                                textDecoration: 'none',
+                                                                fontWeight: 600
+                                                            }}
+                                                        >
+                                                            📞 Call
+                                                        </a>
+                                                        <a
+                                                            href={`https://wa.me/${member.mobile.replace(/\D/g, '')}?text=${encodeURIComponent(campaignMessage)}`}
+                                                            target="_blank"
+                                                            rel="noopener noreferrer"
+                                                            style={{
+                                                                flex: 1,
+                                                                textAlign: 'center',
+                                                                padding: '10px',
+                                                                background: '#25D366',
+                                                                color: 'white',
+                                                                borderRadius: '8px',
+                                                                textDecoration: 'none',
+                                                                fontWeight: 600
+                                                            }}
+                                                        >
+                                                            💬 WhatsApp
+                                                        </a>
+                                                    </>
+                                                )}
+                                                {!member.mobile && (
+                                                    <span style={{ color: '#999', fontSize: '14px', fontStyle: 'italic' }}>No Number Available</span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </>
+                )}
             </div>
-        </div>
+        </div >
     );
 }

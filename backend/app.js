@@ -168,6 +168,58 @@ app.post('/api/register', async (req, res) => {
     }
 });
 
+// 2b. POST /api/call-status - Update Call Status (Col I) and Remarks (Col J)
+app.post('/api/call-status', async (req, res) => {
+    console.log("Received call status update request", req.body);
+    const { zone, name, callStatus, remarks } = req.body;
+
+    try {
+        // 1. Fetch range A:B to find row
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ExecutiveList!A2:B', 
+        });
+
+        const rows = response.data.values;
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'No data found in sheet' });
+        }
+
+        // 2. Find row index
+        const rowIndex = rows.findIndex(row => {
+            const rowZone = (row[0] || '').trim().toLowerCase();
+            const rowName = (row[1] || '').trim().toLowerCase();
+            return rowZone === zone.trim().toLowerCase() && rowName === name.trim().toLowerCase();
+        });
+
+        if (rowIndex === -1) {
+            console.error(`User not found: ${zone} - ${name}`);
+            return res.status(404).json({ status: 'error', message: 'User not found in the list' });
+        }
+
+        const exactRowNumber = rowIndex + 2;
+        console.log(`Found user at row ${exactRowNumber}`);
+
+        // 3. Update columns I (Call Status) and J (Remarks)
+        const updateRange = `ExecutiveList!I${exactRowNumber}:J${exactRowNumber}`;
+
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: updateRange,
+            valueInputOption: 'USER_ENTERED',
+            resource: {
+                values: [[callStatus, remarks]]
+            },
+        });
+
+        console.log("Successfully updated call status");
+        res.json({ status: 'success', message: 'Call status updated successfully' });
+    } catch (error) {
+        console.error('Error updating call status:', error);
+        res.status(500).send('Error updating call status: ' + error.message);
+    }
+});
+
 // --- Authentication & Dashboard Routes ---
 const { authenticateToken, generateToken } = require('./auth');
 const bcrypt = require('bcryptjs');
@@ -306,7 +358,7 @@ app.get('/api/dashboard/members', authenticateToken, async (req, res) => {
         
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'ExecutiveList!A2:G',
+            range: 'ExecutiveList!A2:J',
         });
 
         let rows = response.data.values || [];
@@ -314,16 +366,25 @@ app.get('/api/dashboard/members', authenticateToken, async (req, res) => {
         // Transform to member objects, excluding those with "Leave" status
         let members = rows
             .filter(row => (row[4] || '').trim() !== 'Leave')
-            .map(row => ({
-                zone: (row[0] || '').trim(),
-                name: (row[1] || '').trim(),
-                mobile: (row[2] || '').trim(),
-                participated: (row[3] || '').trim(),
-                status: (row[4] || '').trim(),
-                role: (row[5] || '').trim(),
-                executive: (row[6] || '').trim(),
-                registered: (row[4] || '').trim() === 'Success'
-            }));
+            .map(row => {
+                const mobileC = (row[2] || '').trim();
+                const mobileH = (row[7] || '').trim();
+                // Use column H if column C is empty
+                const mobile = mobileC || mobileH;
+
+                return {
+                    zone: (row[0] || '').trim(),
+                    name: (row[1] || '').trim(),
+                    mobile: mobile,
+                    participated: (row[3] || '').trim(),
+                    status: (row[4] || '').trim(),
+                    role: (row[5] || '').trim(),
+                    executive: (row[6] || '').trim(),
+                    registered: (row[4] || '').trim() === 'Success',
+                    callStatus: (row[8] || '').trim(),
+                    callRemarks: (row[9] || '').trim()
+                };
+            });
 
         // Filter by zone if specified
         if (zone && zone !== 'all') {
