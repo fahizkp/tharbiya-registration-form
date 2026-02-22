@@ -3,6 +3,8 @@ const express = require('express');
 const { google } = require('googleapis');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const multer = require('multer');
+const { Readable } = require('stream');
 require('dotenv').config();
 
 const app = express();
@@ -66,10 +68,15 @@ const auth = new google.auth.GoogleAuth({
       client_email: GOOGLE_AUTH_EMAIL,
       private_key: GOOGLE_AUTH_KEY,
   },
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
+  scopes: [
+      'https://www.googleapis.com/auth/spreadsheets',
+      'https://www.googleapis.com/auth/drive.file'
+  ],
 });
 
 const sheets = google.sheets({ version: 'v4', auth });
+const drive = google.drive({ version: 'v3', auth });
+const upload = multer({ storage: multer.memoryStorage() });
 
 // --- Routes ---
 
@@ -217,6 +224,105 @@ app.post('/api/call-status', async (req, res) => {
     } catch (error) {
         console.error('Error updating call status:', error);
         res.status(500).send('Error updating call status: ' + error.message);
+    }
+});
+
+// 2c. GET /api/config - Read saved WhatsApp message (S1) and image URL (T1)
+app.get('/api/config', authenticateToken, async (req, res) => {
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ExecutiveList!S1:U1',
+        });
+        const row = (response.data.values || [[]])[0] || [];
+        res.json({
+            message: row[0] || '',
+            imageUrl: row[1] || ''
+        });
+    } catch (error) {
+        console.error('Error fetching config:', error);
+        res.status(500).json({ error: 'Failed to fetch config' });
+    }
+});
+
+// 2d. POST /api/config/message - Save WhatsApp message to S1
+app.post('/api/config/message', authenticateToken, async (req, res) => {
+    const { message } = req.body;
+    try {
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ExecutiveList!S1',
+            valueInputOption: 'USER_ENTERED',
+            resource: { values: [[message]] },
+        });
+        console.log('WhatsApp message saved to S1');
+        res.json({ success: true, message: 'Message saved successfully' });
+    } catch (error) {
+        console.error('Error saving message:', error);
+        res.status(500).json({ error: 'Failed to save message' });
+    }
+});
+
+// 2e. POST /api/config/image - Upload image to Google Drive, save URL to T1, fileId to U1
+app.post('/api/config/image', authenticateToken, upload.single('image'), async (req, res) => {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    try {
+        // Check for existing Drive file to delete
+        const configRes = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ExecutiveList!T1:U1',
+        });
+        const configRow = (configRes.data.values || [[]])[0] || [];
+        const oldFileId = configRow[1]; // U1 stores previous Drive file ID
+
+        if (oldFileId) {
+            try {
+                await drive.files.delete({ fileId: oldFileId });
+                console.log('Deleted old Drive file:', oldFileId);
+            } catch (e) {
+                console.warn('Could not delete old file:', e.message);
+            }
+        }
+
+        // Upload new image to Google Drive
+        const ext = (req.file.originalname.split('.').pop() || 'jpg').toLowerCase();
+        const stream = Readable.from(req.file.buffer);
+
+        const driveRes = await drive.files.create({
+            requestBody: {
+                name: `campaign-image-${Date.now()}.${ext}`,
+                mimeType: req.file.mimetype,
+            },
+            media: {
+                mimeType: req.file.mimetype,
+                body: stream,
+            },
+            fields: 'id',
+        });
+
+        const fileId = driveRes.data.id;
+
+        // Make the file publicly readable
+        await drive.permissions.create({
+            fileId,
+            requestBody: { role: 'reader', type: 'anyone' },
+        });
+
+        const imageUrl = `https://drive.google.com/uc?export=view&id=${fileId}`;
+
+        // Save image URL to T1, fileId to U1 (for future replacement)
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ExecutiveList!T1:U1',
+            valueInputOption: 'USER_ENTERED',
+            resource: { values: [[imageUrl, fileId]] },
+        });
+
+        console.log('Image uploaded to Drive and URL saved to T1:', imageUrl);
+        res.json({ success: true, imageUrl });
+    } catch (error) {
+        console.error('Error uploading image:', error);
+        res.status(500).json({ error: 'Failed to upload image: ' + error.message });
     }
 });
 

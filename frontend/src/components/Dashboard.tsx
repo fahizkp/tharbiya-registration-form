@@ -93,6 +93,9 @@ export default function Dashboard() {
     const [roleReportFilter, setRoleReportFilter] = useState<string>('All');
     const [campaignStatus, setCampaignStatus] = useState<'all' | 'registered' | 'notRegistered'>('registered');
     const [callStatusFilter, setCallStatusFilter] = useState<string>('all');
+    const [campaignImageUrl, setCampaignImageUrl] = useState<string>('');
+    const [imageUploading, setImageUploading] = useState(false);
+    const [messageSaving, setMessageSaving] = useState(false);
 
     const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -106,6 +109,7 @@ export default function Dashboard() {
         }
         fetchData();
         fetchRoleStats();
+        fetchConfig();
     }, [token, navigate, isLoading]);
 
     useEffect(() => {
@@ -113,6 +117,60 @@ export default function Dashboard() {
             fetchMembers();
         }
     }, [selectedZone, selectedRole, token]);
+
+    const fetchConfig = async () => {
+        try {
+            const response = await fetch(`${backendUrl}/api/config`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            if (data.message) setCampaignMessage(data.message);
+            if (data.imageUrl) setCampaignImageUrl(data.imageUrl);
+        } catch (error) {
+            console.error('Error fetching config:', error);
+        }
+    };
+
+    const saveMessage = async () => {
+        setMessageSaving(true);
+        try {
+            const response = await fetch(`${backendUrl}/api/config/message`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                body: JSON.stringify({ message: campaignMessage })
+            });
+            if (!response.ok) throw new Error('Failed to save');
+            alert('Message saved successfully!');
+        } catch (error) {
+            console.error('Error saving message:', error);
+            alert('Failed to save message. Please try again.');
+        } finally {
+            setMessageSaving(false);
+        }
+    };
+
+    const uploadImage = async (file: File) => {
+        setImageUploading(true);
+        try {
+            const formData = new FormData();
+            formData.append('image', file);
+            const response = await fetch(`${backendUrl}/api/config/image`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` },
+                body: formData
+            });
+            if (!response.ok) throw new Error('Upload failed');
+            const data = await response.json();
+            setCampaignImageUrl(data.imageUrl);
+            alert('Image uploaded successfully!');
+        } catch (error) {
+            console.error('Error uploading image:', error);
+            alert('Failed to upload image. Please try again.');
+        } finally {
+            setImageUploading(false);
+        }
+    };
 
     const fetchData = async () => {
         try {
@@ -1070,7 +1128,7 @@ export default function Dashboard() {
                                                             📞 Call
                                                         </a>
                                                         <a
-                                                            href={(() => { const digits = member.mobile.replace(/\D/g, ''); const withCountry = digits.startsWith('91') ? digits : `91${digits}`; return `https://wa.me/${withCountry}?text=${encodeURIComponent(campaignMessage)}`; })()}
+                                                            href={(() => { const digits = member.mobile.replace(/\D/g, ''); const withCountry = digits.startsWith('91') ? digits : `91${digits}`; const fullMsg = campaignImageUrl ? `${campaignMessage}\n\n🖼️ ${campaignImageUrl}` : campaignMessage; return `https://wa.me/${withCountry}?text=${encodeURIComponent(fullMsg)}`; })()}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             style={{
@@ -1105,77 +1163,115 @@ export default function Dashboard() {
                     <>
                         <div className="dashboard-header">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '15px', width: '100%' }}>
-                                <button
-                                    className="mobile-menu-btn"
-                                    onClick={() => setIsMobileMenuOpen(true)}
-                                    style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', padding: '5px', color: '#333' }}
-                                >
-                                    ☰
-                                </button>
+                                <button className="mobile-menu-btn" onClick={() => setIsMobileMenuOpen(true)}
+                                    style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', padding: '5px', color: '#333' }}>☰</button>
                                 <div>
-                                    <h1>💬 WhatsApp Message Template</h1>
+                                    <h1>💬 WhatsApp Template</h1>
                                     <p style={{ color: '#8b93a7', fontSize: '14px', marginTop: '8px', marginBottom: 0 }}>
-                                        Customize the default message sent via WhatsApp in the Call Campaign
+                                        Saved to Google Sheet · Used automatically in Call Campaign
                                     </p>
                                 </div>
                             </div>
                         </div>
 
-                        <div style={{ background: 'white', borderRadius: '20px', padding: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', maxWidth: '700px' }}>
-                            <label style={{ fontWeight: 700, fontSize: '15px', color: '#25D366', display: 'block', marginBottom: '12px' }}>
-                                📝 Message Template
-                            </label>
-                            <textarea
-                                value={campaignMessage}
-                                onChange={(e) => setCampaignMessage(e.target.value)}
-                                placeholder="Enter the default WhatsApp message..."
-                                style={{
-                                    width: '100%',
-                                    padding: '16px',
-                                    borderRadius: '12px',
-                                    border: '2px solid #e0f2e9',
-                                    minHeight: '180px',
-                                    fontFamily: 'inherit',
-                                    fontSize: '15px',
-                                    lineHeight: '1.6',
-                                    resize: 'vertical',
-                                    outline: 'none',
-                                    boxSizing: 'border-box',
-                                    transition: 'border 0.2s ease'
-                                }}
-                                onFocus={(e) => e.currentTarget.style.border = '2px solid #25D366'}
-                                onBlur={(e) => e.currentTarget.style.border = '2px solid #e0f2e9'}
-                            />
-                            <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                                <button
-                                    onClick={async () => { await navigator.clipboard.writeText(campaignMessage); alert('Message copied to clipboard!'); }}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '24px' }}>
+
+                            {/* Message Card */}
+                            <div style={{ background: 'white', borderRadius: '20px', padding: '28px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+                                <label style={{ fontWeight: 700, fontSize: '15px', color: '#25D366', display: 'block', marginBottom: '12px' }}>
+                                    📝 Message Template
+                                </label>
+                                <textarea
+                                    value={campaignMessage}
+                                    onChange={(e) => setCampaignMessage(e.target.value)}
+                                    placeholder="Enter the default WhatsApp message..."
                                     style={{
-                                        background: '#25D366', color: 'white', border: 'none',
-                                        padding: '12px 24px', borderRadius: '10px', cursor: 'pointer',
-                                        fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center',
-                                        gap: '8px', boxShadow: '0 4px 12px rgba(37,211,102,0.3)', transition: 'all 0.2s ease'
+                                        width: '100%', padding: '14px', borderRadius: '12px',
+                                        border: '2px solid #e0f2e9', minHeight: '200px',
+                                        fontFamily: 'inherit', fontSize: '15px', lineHeight: '1.7',
+                                        resize: 'vertical', outline: 'none', boxSizing: 'border-box',
+                                        transition: 'border 0.2s ease'
                                     }}
-                                    onMouseOver={(e) => e.currentTarget.style.background = '#20BA5A'}
-                                    onMouseOut={(e) => e.currentTarget.style.background = '#25D366'}
-                                >
-                                    📋 Copy Message
-                                </button>
-                                <button
-                                    onClick={() => setCampaignMessage('Assalamu Alaikum, please register for the Tharbiya program.')}
-                                    style={{
-                                        background: 'transparent', color: '#8b93a7', border: '2px solid #e0e0e0',
-                                        padding: '12px 24px', borderRadius: '10px', cursor: 'pointer',
-                                        fontWeight: 600, fontSize: '14px', transition: 'all 0.2s ease'
-                                    }}
-                                    onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#aaa'; }}
-                                    onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#e0e0e0'; }}
-                                >
-                                    ↩ Reset to Default
-                                </button>
+                                    onFocus={(e) => e.currentTarget.style.border = '2px solid #25D366'}
+                                    onBlur={(e) => e.currentTarget.style.border = '2px solid #e0f2e9'}
+                                />
+                                <div style={{ display: 'flex', gap: '10px', marginTop: '14px', flexWrap: 'wrap' }}>
+                                    <button onClick={saveMessage} disabled={messageSaving}
+                                        style={{
+                                            background: messageSaving ? '#aaa' : '#25D366', color: 'white', border: 'none',
+                                            padding: '11px 22px', borderRadius: '10px', cursor: messageSaving ? 'not-allowed' : 'pointer',
+                                            fontWeight: 700, fontSize: '14px', boxShadow: '0 3px 10px rgba(37,211,102,0.3)', transition: 'all 0.2s'
+                                        }}>
+                                        {messageSaving ? '⏳ Saving...' : '💾 Save to Sheet'}
+                                    </button>
+                                    <button onClick={async () => { await navigator.clipboard.writeText(campaignMessage); alert('Copied!'); }}
+                                        style={{
+                                            background: 'transparent', color: '#25D366', border: '2px solid #25D366',
+                                            padding: '11px 22px', borderRadius: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '14px'
+                                        }}>📋 Copy</button>
+                                    <button onClick={() => setCampaignMessage('Assalamu Alaikum, please register for the Tharbiya program.')}
+                                        style={{
+                                            background: 'transparent', color: '#8b93a7', border: '2px solid #e0e0e0',
+                                            padding: '11px 22px', borderRadius: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '14px'
+                                        }}>↩ Reset</button>
+                                </div>
+                                <p style={{ color: '#aaa', fontSize: '12px', marginTop: '12px' }}>
+                                    ℹ️ If an image is saved, it will be appended to this message automatically.
+                                </p>
                             </div>
-                            <p style={{ color: '#aaa', fontSize: '13px', marginTop: '14px' }}>
-                                ℹ️ This message is used when you tap the 💬 WhatsApp button on any member card in Call Campaign.
-                            </p>
+
+                            {/* Image Card */}
+                            <div style={{ background: 'white', borderRadius: '20px', padding: '28px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
+                                <label style={{ fontWeight: 700, fontSize: '15px', color: '#3B82F6', display: 'block', marginBottom: '12px' }}>
+                                    🖼️ Campaign Image
+                                </label>
+
+                                {campaignImageUrl ? (
+                                    <div style={{ marginBottom: '16px' }}>
+                                        <div style={{ borderRadius: '12px', overflow: 'hidden', border: '2px solid #e0e7ff', marginBottom: '10px', maxHeight: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
+                                            <img src={campaignImageUrl} alt="Campaign" style={{ maxWidth: '100%', maxHeight: '220px', objectFit: 'contain' }} />
+                                        </div>
+                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                                            <a href={campaignImageUrl} target="_blank" rel="noopener noreferrer"
+                                                style={{ fontSize: '12px', color: '#3B82F6', textDecoration: 'underline' }}>🔗 View Full Image</a>
+                                            <button onClick={async () => { await navigator.clipboard.writeText(campaignImageUrl); alert('Image URL copied!'); }}
+                                                style={{ background: 'transparent', border: 'none', color: '#8b93a7', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>📋 Copy URL</button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div style={{
+                                        border: '2px dashed #c7d2fe', borderRadius: '12px', padding: '30px',
+                                        textAlign: 'center', color: '#8b93a7', marginBottom: '16px', background: '#f8fafc'
+                                    }}>
+                                        <div style={{ fontSize: '40px', marginBottom: '8px' }}>🖼️</div>
+                                        <p style={{ margin: 0, fontSize: '14px' }}>No image uploaded yet</p>
+                                    </div>
+                                )}
+
+                                <label htmlFor="image-upload" style={{
+                                    display: 'inline-block', padding: '11px 22px', borderRadius: '10px',
+                                    background: imageUploading ? '#aaa' : '#3B82F6', color: 'white',
+                                    fontWeight: 700, fontSize: '14px', cursor: imageUploading ? 'not-allowed' : 'pointer',
+                                    boxShadow: '0 3px 10px rgba(59,130,246,0.3)', transition: 'all 0.2s'
+                                }}>
+                                    {imageUploading ? '⏳ Uploading...' : (campaignImageUrl ? '🔄 Replace Image' : '📤 Upload Image')}
+                                </label>
+                                <input
+                                    id="image-upload"
+                                    type="file"
+                                    accept="image/*"
+                                    style={{ display: 'none' }}
+                                    disabled={imageUploading}
+                                    onChange={(e) => {
+                                        const file = e.target.files?.[0];
+                                        if (file) uploadImage(file);
+                                        e.target.value = ''; // reset so same file can be re-selected
+                                    }}
+                                />
+                                <p style={{ color: '#aaa', fontSize: '12px', marginTop: '12px' }}>
+                                    ℹ️ Image is uploaded to Google Drive (public link). Uploading replaces the previous image. Supported: JPG, PNG, GIF, WebP.
+                                </p>
+                            </div>
                         </div>
                     </>
                 )}
