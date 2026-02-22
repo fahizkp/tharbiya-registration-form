@@ -53,6 +53,29 @@ const CALL_STATUS_OPTIONS = [
     { value: 'mattullava', label: 'മറ്റുള്ളവ' }
 ];
 
+const getCallStatusIcon = (callStatus?: string): { icon: string; color: string } | null => {
+    if (!callStatus) return null;
+    if (callStatus === 'vilichu_pankedukkum') return { icon: '✅', color: '#22c55e' };
+    if (callStatus === 'vilichu_pankedukkilla') return { icon: '❌', color: '#ef4444' };
+    // All other non-empty statuses get a sad smiley
+    return { icon: '😔', color: '#f59e0b' };
+};
+
+const getTileStyle = (callStatus?: string): React.CSSProperties => {
+    if (!callStatus) {
+        // Not called yet — neutral white
+        return { background: 'white', border: '1px solid #eee' };
+    }
+    if (callStatus === 'vilichu_pankedukkum') {
+        return { background: '#f0fdf4', border: '1px solid #86efac' };
+    }
+    if (callStatus === 'vilichu_pankedukkilla') {
+        return { background: '#fff1f2', border: '1px solid #fca5a5' };
+    }
+    // Any other called status → amber tint
+    return { background: '#fffbeb', border: '1px solid #fcd34d' };
+};
+
 export default function Dashboard() {
     const { token, logout, user, isLoading } = useAuth();
     const navigate = useNavigate();
@@ -64,11 +87,12 @@ export default function Dashboard() {
     const [loading, setLoading] = useState(true);
     const [showWhatsAppPreview, setShowWhatsAppPreview] = useState(false);
     const [roleStats, setRoleStats] = useState<ZoneRoleStats[]>([]);
-    const [view, setView] = useState<'dashboard' | 'roleReport' | 'callCampaign'>('dashboard');
+    const [view, setView] = useState<'dashboard' | 'roleReport' | 'callCampaign' | 'whatsappTemplate'>('dashboard');
     const [campaignMessage, setCampaignMessage] = useState('Assalamu Alaikum, please register for the Tharbiya program.');
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [roleReportFilter, setRoleReportFilter] = useState<string>('All');
-    const [campaignStatus, setCampaignStatus] = useState<'all' | 'registered' | 'notRegistered'>('notRegistered');
+    const [campaignStatus, setCampaignStatus] = useState<'all' | 'registered' | 'notRegistered'>('registered');
+    const [callStatusFilter, setCallStatusFilter] = useState<string>('all');
 
     const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -358,6 +382,7 @@ export default function Dashboard() {
                     <li><a href="#" className={view === 'dashboard' ? "active" : ""} onClick={(e) => { e.preventDefault(); setView('dashboard'); setIsMobileMenuOpen(false); }}>Dashboard</a></li>
                     <li><a href="#" className={view === 'roleReport' ? "active" : ""} onClick={(e) => { e.preventDefault(); setView('roleReport'); setIsMobileMenuOpen(false); }}>Role Report</a></li>
                     <li><a href="#" className={view === 'callCampaign' ? "active" : ""} onClick={(e) => { e.preventDefault(); setView('callCampaign'); setSelectedRole('All'); setIsMobileMenuOpen(false); }}>Call Campaign</a></li>
+                    <li><a href="#" className={view === 'whatsappTemplate' ? "active" : ""} onClick={(e) => { e.preventDefault(); setView('whatsappTemplate'); setIsMobileMenuOpen(false); }}>💬 WA Template</a></li>
                     <li><a href="/">Registration Form</a></li>
                     <li><button onClick={handleLogout} style={{
                         width: '100%',
@@ -919,41 +944,63 @@ export default function Dashboard() {
                                 </select>
                             </div>
 
-                            <div style={{ marginBottom: '10px' }}>
-                                <label style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>WhatsApp Message Template:</label>
-                                <textarea
-                                    value={campaignMessage}
-                                    onChange={(e) => setCampaignMessage(e.target.value)}
-                                    placeholder="Enter default message..."
-                                    style={{
-                                        width: '100%',
-                                        padding: '12px',
-                                        borderRadius: '8px',
-                                        border: '1px solid #ddd',
-                                        minHeight: '80px',
-                                        fontFamily: 'inherit'
-                                    }}
-                                />
+                            <div style={{ marginBottom: '20px' }}>
+                                <label htmlFor="campaign-call-status-filter" style={{ fontWeight: 600, display: 'block', marginBottom: '8px' }}>Call Status Filter:</label>
+                                <select
+                                    id="campaign-call-status-filter"
+                                    value={callStatusFilter}
+                                    onChange={(e) => setCallStatusFilter(e.target.value)}
+                                    className="zone-select"
+                                    style={{ padding: '10px', borderRadius: '8px', border: '1px solid #ddd', width: '100%', maxWidth: '300px' }}
+                                >
+                                    <option value="all">All</option>
+                                    <option value="not_called">🔵 Not Called Yet</option>
+                                    <option value="vilichu_pankedukkum">✅ വിളിച്ചു, പങ്കെടുക്കും</option>
+                                    <option value="vilichu_pankedukkilla">❌ വിളിച്ചു, പങ്കെടുക്കില്ല</option>
+                                    <option value="phone_eduthilla_whatsapp">😔 ഫോൺ എടുത്തില്ല, വാട്സാപ്പ് അയച്ചു</option>
+                                    <option value="phone_eduthilla">😔 ഫോൺ എടുത്തില്ല</option>
+                                    <option value="call_pokunnilla">😔 കോൾ പോകുന്നില്ല</option>
+                                    <option value="mattullava">😔 മറ്റുള്ളവ</option>
+                                </select>
                             </div>
                         </div>
 
                         {/* Campaign List */}
                         <div className="members-list">
-                            <h3>📞 Call List - {selectedZone === 'all' ? 'All Zones' : selectedZone} ({campaignMembers.length})</h3>
+                            <h3>📞 Call List - {selectedZone === 'all' ? 'All Zones' : selectedZone} ({campaignMembers.filter(m => {
+                                if (callStatusFilter === 'all') return true;
+                                if (callStatusFilter === 'not_called') return !m.callStatus;
+                                return m.callStatus === callStatusFilter;
+                            }).length})
+                            </h3>
 
                             {campaignMembers.length === 0 ? (
                                 <p className="no-data">No members found matching criteria!</p>
                             ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px', marginTop: '20px' }}>
-                                    {campaignMembers.map((member, idx) => (
+                                    {campaignMembers.filter(m => {
+                                        if (callStatusFilter === 'all') return true;
+                                        if (callStatusFilter === 'not_called') return !m.callStatus;
+                                        return m.callStatus === callStatusFilter;
+                                    }).map((member, idx) => (
                                         <div key={idx} style={{
-                                            background: 'white',
+                                            ...getTileStyle(member.callStatus),
                                             padding: '20px',
                                             borderRadius: '12px',
                                             boxShadow: '0 2px 10px rgba(0,0,0,0.05)',
-                                            border: '1px solid #eee'
+                                            transition: 'background 0.3s ease, border 0.3s ease'
                                         }}>
-                                            <div style={{ fontWeight: 700, fontSize: '18px', marginBottom: '5px' }}>{member.name}</div>
+                                            <div style={{ fontWeight: 700, fontSize: '18px', marginBottom: '5px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                {member.name}
+                                                {getCallStatusIcon(member.callStatus) && (
+                                                    <span
+                                                        title={CALL_STATUS_OPTIONS.find(o => o.value === member.callStatus)?.label || member.callStatus}
+                                                        style={{ fontSize: '20px', lineHeight: 1 }}
+                                                    >
+                                                        {getCallStatusIcon(member.callStatus)!.icon}
+                                                    </span>
+                                                )}
+                                            </div>
                                             <div style={{ color: '#666', fontSize: '14px', marginBottom: '5px' }}>{member.zone}</div>
                                             <div style={{ color: '#888', fontSize: '14px', marginBottom: '15px' }}>{member.mobile || 'No Mobile'}</div>
 
@@ -1023,7 +1070,7 @@ export default function Dashboard() {
                                                             📞 Call
                                                         </a>
                                                         <a
-                                                            href={`https://wa.me/${member.mobile.replace(/\D/g, '')}?text=${encodeURIComponent(campaignMessage)}`}
+                                                            href={(() => { const digits = member.mobile.replace(/\D/g, ''); const withCountry = digits.startsWith('91') ? digits : `91${digits}`; return `https://wa.me/${withCountry}?text=${encodeURIComponent(campaignMessage)}`; })()}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             style={{
@@ -1049,6 +1096,86 @@ export default function Dashboard() {
                                     ))}
                                 </div>
                             )}
+                        </div>
+                    </>
+                )}
+
+                {/* WhatsApp Template Section */}
+                {view === 'whatsappTemplate' && (
+                    <>
+                        <div className="dashboard-header">
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '15px', width: '100%' }}>
+                                <button
+                                    className="mobile-menu-btn"
+                                    onClick={() => setIsMobileMenuOpen(true)}
+                                    style={{ background: 'transparent', border: 'none', fontSize: '24px', cursor: 'pointer', padding: '5px', color: '#333' }}
+                                >
+                                    ☰
+                                </button>
+                                <div>
+                                    <h1>💬 WhatsApp Message Template</h1>
+                                    <p style={{ color: '#8b93a7', fontSize: '14px', marginTop: '8px', marginBottom: 0 }}>
+                                        Customize the default message sent via WhatsApp in the Call Campaign
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div style={{ background: 'white', borderRadius: '20px', padding: '30px', boxShadow: '0 4px 20px rgba(0,0,0,0.05)', maxWidth: '700px' }}>
+                            <label style={{ fontWeight: 700, fontSize: '15px', color: '#25D366', display: 'block', marginBottom: '12px' }}>
+                                📝 Message Template
+                            </label>
+                            <textarea
+                                value={campaignMessage}
+                                onChange={(e) => setCampaignMessage(e.target.value)}
+                                placeholder="Enter the default WhatsApp message..."
+                                style={{
+                                    width: '100%',
+                                    padding: '16px',
+                                    borderRadius: '12px',
+                                    border: '2px solid #e0f2e9',
+                                    minHeight: '180px',
+                                    fontFamily: 'inherit',
+                                    fontSize: '15px',
+                                    lineHeight: '1.6',
+                                    resize: 'vertical',
+                                    outline: 'none',
+                                    boxSizing: 'border-box',
+                                    transition: 'border 0.2s ease'
+                                }}
+                                onFocus={(e) => e.currentTarget.style.border = '2px solid #25D366'}
+                                onBlur={(e) => e.currentTarget.style.border = '2px solid #e0f2e9'}
+                            />
+                            <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
+                                <button
+                                    onClick={async () => { await navigator.clipboard.writeText(campaignMessage); alert('Message copied to clipboard!'); }}
+                                    style={{
+                                        background: '#25D366', color: 'white', border: 'none',
+                                        padding: '12px 24px', borderRadius: '10px', cursor: 'pointer',
+                                        fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center',
+                                        gap: '8px', boxShadow: '0 4px 12px rgba(37,211,102,0.3)', transition: 'all 0.2s ease'
+                                    }}
+                                    onMouseOver={(e) => e.currentTarget.style.background = '#20BA5A'}
+                                    onMouseOut={(e) => e.currentTarget.style.background = '#25D366'}
+                                >
+                                    📋 Copy Message
+                                </button>
+                                <button
+                                    onClick={() => setCampaignMessage('Assalamu Alaikum, please register for the Tharbiya program.')}
+                                    style={{
+                                        background: 'transparent', color: '#8b93a7', border: '2px solid #e0e0e0',
+                                        padding: '12px 24px', borderRadius: '10px', cursor: 'pointer',
+                                        fontWeight: 600, fontSize: '14px', transition: 'all 0.2s ease'
+                                    }}
+                                    onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#aaa'; }}
+                                    onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#e0e0e0'; }}
+                                >
+                                    ↩ Reset to Default
+                                </button>
+                            </div>
+                            <p style={{ color: '#aaa', fontSize: '13px', marginTop: '14px' }}>
+                                ℹ️ This message is used when you tap the 💬 WhatsApp button on any member card in Call Campaign.
+                            </p>
                         </div>
                     </>
                 )}
