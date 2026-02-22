@@ -93,8 +93,6 @@ export default function Dashboard() {
     const [roleReportFilter, setRoleReportFilter] = useState<string>('All');
     const [campaignStatus, setCampaignStatus] = useState<'all' | 'registered' | 'notRegistered'>('registered');
     const [callStatusFilter, setCallStatusFilter] = useState<string>('all');
-    const [campaignImageUrl, setCampaignImageUrl] = useState<string>('');
-    const [imageUploading, setImageUploading] = useState(false);
     const [messageSaving, setMessageSaving] = useState(false);
 
     const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
@@ -126,7 +124,6 @@ export default function Dashboard() {
             if (!response.ok) return;
             const data = await response.json();
             if (data.message) setCampaignMessage(data.message);
-            if (data.imageUrl) setCampaignImageUrl(data.imageUrl);
         } catch (error) {
             console.error('Error fetching config:', error);
         }
@@ -147,28 +144,6 @@ export default function Dashboard() {
             alert('Failed to save message. Please try again.');
         } finally {
             setMessageSaving(false);
-        }
-    };
-
-    const uploadImage = async (file: File) => {
-        setImageUploading(true);
-        try {
-            const formData = new FormData();
-            formData.append('image', file);
-            const response = await fetch(`${backendUrl}/api/config/image`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` },
-                body: formData
-            });
-            if (!response.ok) throw new Error('Upload failed');
-            const data = await response.json();
-            setCampaignImageUrl(data.imageUrl);
-            alert('Image uploaded successfully!');
-        } catch (error) {
-            console.error('Error uploading image:', error);
-            alert('Failed to upload image. Please try again.');
-        } finally {
-            setImageUploading(false);
         }
     };
 
@@ -1128,7 +1103,7 @@ export default function Dashboard() {
                                                             📞 Call
                                                         </a>
                                                         <a
-                                                            href={(() => { const digits = member.mobile.replace(/\D/g, ''); const withCountry = digits.startsWith('91') ? digits : `91${digits}`; const fullMsg = campaignImageUrl ? `${campaignMessage}\n\n🖼️ ${campaignImageUrl}` : campaignMessage; return `https://wa.me/${withCountry}?text=${encodeURIComponent(fullMsg)}`; })()}
+                                                            href={(() => { const digits = member.mobile.replace(/\D/g, ''); const withCountry = digits.startsWith('91') ? digits : `91${digits}`; return `https://wa.me/${withCountry}?text=${encodeURIComponent(campaignMessage)}`; })()}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
                                                             style={{
@@ -1202,7 +1177,7 @@ export default function Dashboard() {
                                             padding: '11px 22px', borderRadius: '10px', cursor: messageSaving ? 'not-allowed' : 'pointer',
                                             fontWeight: 700, fontSize: '14px', boxShadow: '0 3px 10px rgba(37,211,102,0.3)', transition: 'all 0.2s'
                                         }}>
-                                        {messageSaving ? '⏳ Saving...' : '💾 Save to Sheet'}
+                                        {messageSaving ? '⏳ Saving...' : '💾 Save'}
                                     </button>
                                     <button onClick={async () => { await navigator.clipboard.writeText(campaignMessage); alert('Copied!'); }}
                                         style={{
@@ -1216,60 +1191,7 @@ export default function Dashboard() {
                                         }}>↩ Reset</button>
                                 </div>
                                 <p style={{ color: '#aaa', fontSize: '12px', marginTop: '12px' }}>
-                                    ℹ️ If an image is saved, it will be appended to this message automatically.
-                                </p>
-                            </div>
-
-                            {/* Image Card */}
-                            <div style={{ background: 'white', borderRadius: '20px', padding: '28px', boxShadow: '0 4px 20px rgba(0,0,0,0.06)' }}>
-                                <label style={{ fontWeight: 700, fontSize: '15px', color: '#3B82F6', display: 'block', marginBottom: '12px' }}>
-                                    🖼️ Campaign Image
-                                </label>
-
-                                {campaignImageUrl ? (
-                                    <div style={{ marginBottom: '16px' }}>
-                                        <div style={{ borderRadius: '12px', overflow: 'hidden', border: '2px solid #e0e7ff', marginBottom: '10px', maxHeight: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f8fafc' }}>
-                                            <img src={campaignImageUrl} alt="Campaign" style={{ maxWidth: '100%', maxHeight: '220px', objectFit: 'contain' }} />
-                                        </div>
-                                        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                                            <a href={campaignImageUrl} target="_blank" rel="noopener noreferrer"
-                                                style={{ fontSize: '12px', color: '#3B82F6', textDecoration: 'underline' }}>🔗 View Full Image</a>
-                                            <button onClick={async () => { await navigator.clipboard.writeText(campaignImageUrl); alert('Image URL copied!'); }}
-                                                style={{ background: 'transparent', border: 'none', color: '#8b93a7', fontSize: '12px', cursor: 'pointer', textDecoration: 'underline' }}>📋 Copy URL</button>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div style={{
-                                        border: '2px dashed #c7d2fe', borderRadius: '12px', padding: '30px',
-                                        textAlign: 'center', color: '#8b93a7', marginBottom: '16px', background: '#f8fafc'
-                                    }}>
-                                        <div style={{ fontSize: '40px', marginBottom: '8px' }}>🖼️</div>
-                                        <p style={{ margin: 0, fontSize: '14px' }}>No image uploaded yet</p>
-                                    </div>
-                                )}
-
-                                <label htmlFor="image-upload" style={{
-                                    display: 'inline-block', padding: '11px 22px', borderRadius: '10px',
-                                    background: imageUploading ? '#aaa' : '#3B82F6', color: 'white',
-                                    fontWeight: 700, fontSize: '14px', cursor: imageUploading ? 'not-allowed' : 'pointer',
-                                    boxShadow: '0 3px 10px rgba(59,130,246,0.3)', transition: 'all 0.2s'
-                                }}>
-                                    {imageUploading ? '⏳ Uploading...' : (campaignImageUrl ? '🔄 Replace Image' : '📤 Upload Image')}
-                                </label>
-                                <input
-                                    id="image-upload"
-                                    type="file"
-                                    accept="image/*"
-                                    style={{ display: 'none' }}
-                                    disabled={imageUploading}
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0];
-                                        if (file) uploadImage(file);
-                                        e.target.value = ''; // reset so same file can be re-selected
-                                    }}
-                                />
-                                <p style={{ color: '#aaa', fontSize: '12px', marginTop: '12px' }}>
-                                    ℹ️ Image is uploaded to Google Drive (public link). Uploading replaces the previous image. Supported: JPG, PNG, GIF, WebP.
+                                    ℹ️ Message is saved to the Google Sheet and loaded automatically on next login.
                                 </p>
                             </div>
                         </div>
