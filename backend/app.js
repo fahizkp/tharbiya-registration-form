@@ -526,6 +526,184 @@ app.get('/api/dashboard/role-stats', authenticateToken, async (req, res) => {
 });
 
 
+// 8. POST /api/checkin - Mark or unmark a person as Present on the day (Col K) (Protected)
+app.post('/api/checkin', authenticateToken, async (req, res) => {
+    const { zone, name, present } = req.body;
+    console.log(`Check-in update: ${zone} - ${name} => ${present}`);
+
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ExecutiveList!A2:B',
+        });
+
+        const rows = response.data.values;
+        if (!rows || rows.length === 0) {
+            return res.status(404).json({ status: 'error', message: 'No data found in sheet' });
+        }
+
+        const rowIndex = rows.findIndex(row => {
+            const rowZone = (row[0] || '').trim().toLowerCase();
+            const rowName = (row[1] || '').trim().toLowerCase();
+            return rowZone === zone.trim().toLowerCase() && rowName === name.trim().toLowerCase();
+        });
+
+        if (rowIndex === -1) {
+            return res.status(404).json({ status: 'error', message: 'User not found in the list' });
+        }
+
+        const exactRowNumber = rowIndex + 2;
+        const updateRange = `ExecutiveList!K${exactRowNumber}`;
+
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: updateRange,
+            valueInputOption: 'USER_ENTERED',
+            resource: { values: [[present ? 'Present' : '']] },
+        });
+
+        console.log(`Check-in updated for row ${exactRowNumber}`);
+        res.json({ status: 'success', message: 'Check-in updated successfully' });
+    } catch (error) {
+        console.error('Error updating check-in:', error);
+        res.status(500).json({ error: 'Error updating check-in: ' + error.message });
+    }
+});
+
+// 9. GET /api/checkin/stats - Zone-wise check-in statistics (Protected)
+app.get('/api/checkin/stats', authenticateToken, async (req, res) => {
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ExecutiveList!A2:K',
+        });
+
+        const rows = response.data.values || [];
+
+        // Build per-zone stats
+        const zoneMap = {};
+        let overallRegistered = 0;
+        let overallPresent = 0;
+        let overallLeave = 0;
+        let overallNotAttended = 0;
+
+        rows.forEach(row => {
+            const zone = (row[0] || '').trim();
+            const status = (row[4] || '').trim(); // Col E
+            const checkin = (row[10] || '').trim(); // Col K
+
+            if (!zone) return;
+
+            if (!zoneMap[zone]) {
+                zoneMap[zone] = { name: zone, totalRegistered: 0, present: 0, leave: 0, notAttended: 0 };
+            }
+
+            if (status === 'Leave') {
+                zoneMap[zone].leave++;
+                overallLeave++;
+            } else if (status === 'Success') {
+                zoneMap[zone].totalRegistered++;
+                overallRegistered++;
+                if (checkin === 'Present') {
+                    zoneMap[zone].present++;
+                    overallPresent++;
+                } else {
+                    zoneMap[zone].notAttended++;
+                    overallNotAttended++;
+                }
+            }
+        });
+
+        const zones = Object.values(zoneMap).map(z => ({
+            ...z,
+            percentage: z.totalRegistered > 0
+                ? parseFloat(((z.present / z.totalRegistered) * 100).toFixed(1))
+                : 0
+        }));
+
+        res.json({
+            overall: {
+                totalRegistered: overallRegistered,
+                present: overallPresent,
+                leave: overallLeave,
+                notAttended: overallNotAttended,
+                percentage: overallRegistered > 0
+                    ? parseFloat(((overallPresent / overallRegistered) * 100).toFixed(1))
+                    : 0
+            },
+            zones
+        });
+    } catch (error) {
+        console.error('Error fetching check-in stats:', error);
+        res.status(500).json({ error: 'Failed to fetch check-in statistics' });
+    }
+});
+
+// 10. GET /api/checkin/members - Registered members with check-in status (Protected)
+app.get('/api/checkin/members', authenticateToken, async (req, res) => {
+    try {
+        const { zone } = req.query;
+
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ExecutiveList!A2:K',
+        });
+
+        const rows = response.data.values || [];
+
+        let members = rows
+            .filter(row => {
+                const status = (row[4] || '').trim();
+                return status === 'Success' || status === 'WalkIn'; // Include both registered and walk-ins
+            })
+            .map(row => ({
+                zone: (row[0] || '').trim(),
+                name: (row[1] || '').trim(),
+                mobile: (row[2] || '').trim() || (row[7] || '').trim(),
+                checkedIn: (row[10] || '').trim() === 'Present',
+                isWalkIn: (row[4] || '').trim() === 'WalkIn'
+            }));
+
+        if (zone && zone !== 'all') {
+            members = members.filter(m => m.zone.toLowerCase() === zone.toLowerCase());
+        }
+
+        res.json({ members });
+    } catch (error) {
+        console.error('Error fetching check-in members:', error);
+        res.status(500).json({ error: 'Failed to fetch members' });
+    }
+});
+
+// 11. POST /api/checkin/walkin - Add a non-registered walk-in person and mark as Present (Protected)
+app.post('/api/checkin/walkin', authenticateToken, async (req, res) => {
+    const { zone, name, mobile } = req.body;
+    if (!zone || !name) {
+        return res.status(400).json({ error: 'Zone and name are required' });
+    }
+    console.log(`Walk-in: ${zone} - ${name} (${mobile})`);
+
+    try {
+        // Append a new row: A=Zone, B=Name, C=Mobile, E=WalkIn, K=Present
+        await sheets.spreadsheets.values.append({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ExecutiveList!A:K',
+            valueInputOption: 'USER_ENTERED',
+            insertDataOption: 'INSERT_ROWS',
+            resource: {
+                values: [[zone, name, mobile || '', '', 'WalkIn', '', '', '', '', '', 'Present']]
+            },
+        });
+
+        console.log(`Walk-in added: ${name} from ${zone}`);
+        res.json({ status: 'success', message: 'Walk-in added successfully' });
+    } catch (error) {
+        console.error('Error adding walk-in:', error);
+        res.status(500).json({ error: 'Error adding walk-in: ' + error.message });
+    }
+});
+
+
 app.listen(port, () => {
     console.log(`Backend server strictly running at http://localhost:${port}`);
     console.log('Press Ctrl+C to stop');

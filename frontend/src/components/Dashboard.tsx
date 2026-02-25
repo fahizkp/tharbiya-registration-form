@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './Dashboard.css';
 
@@ -416,6 +416,15 @@ export default function Dashboard() {
                     <li><a href="#" className={view === 'roleReport' ? "active" : ""} onClick={(e) => { e.preventDefault(); setView('roleReport'); setIsMobileMenuOpen(false); }}>Role Report</a></li>
                     <li><a href="#" className={view === 'callCampaign' ? "active" : ""} onClick={(e) => { e.preventDefault(); setView('callCampaign'); setSelectedRole('All'); setIsMobileMenuOpen(false); }}>Call Campaign</a></li>
                     <li><a href="#" className={view === 'whatsappTemplate' ? "active" : ""} onClick={(e) => { e.preventDefault(); setView('whatsappTemplate'); setIsMobileMenuOpen(false); }}>💬 WA Template</a></li>
+                    {/* Check-in Day section */}
+                    <li style={{ marginTop: 12 }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: '#4b5563', textTransform: 'uppercase', letterSpacing: 2, padding: '6px 20px 6px', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+                            🏁 Check-in Day
+                        </div>
+                    </li>
+                    <li><Link to="/checkin" style={{ display: 'block', padding: '12px 20px', color: '#8b93a7', fontWeight: 600, fontSize: '15px', textDecoration: 'none', borderRadius: '12px' }}>✅ Check-in</Link></li>
+                    <li><Link to="/statistics" style={{ display: 'block', padding: '12px 20px', color: '#8b93a7', fontWeight: 600, fontSize: '15px', textDecoration: 'none', borderRadius: '12px' }}>📈 Statistics</Link></li>
+                    <li><Link to="/ranking" style={{ display: 'block', padding: '12px 20px', color: '#8b93a7', fontWeight: 600, fontSize: '15px', textDecoration: 'none', borderRadius: '12px' }}>🏆 Ranking</Link></li>
                     <li><a href="/">Registration Form</a></li>
                     <li><button onClick={handleLogout} style={{
                         width: '100%',

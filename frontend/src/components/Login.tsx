@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import './Login.css';
 
@@ -9,7 +9,11 @@ export default function Login() {
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const navigate = useNavigate();
+    const location = useLocation();
     const { login } = useAuth();
+
+    // Where to go after login — defaults to /admin, but respects redirect from ProtectedRoute
+    const from = (location.state as any)?.from?.pathname || '/admin';
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -18,7 +22,7 @@ export default function Login() {
 
         try {
             await login(username, password);
-            navigate('/admin');
+            navigate(from, { replace: true });
         } catch (err: any) {
             setError(err.message || 'Login failed. Please check your credentials.');
         } finally {
