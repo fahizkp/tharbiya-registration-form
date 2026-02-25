@@ -7,6 +7,7 @@ interface CheckInMember {
     name: string;
     mobile: string;
     checkedIn: boolean;
+    checkinTime?: string;
     isWalkIn?: boolean;
 }
 
@@ -130,7 +131,7 @@ const Toggle = ({ checked, onChange, pending }: { checked: boolean; onChange: ()
                     transition: dragging ? 'none' : 'left 0.3s cubic-bezier(0.34,1.56,0.64,1)',
                 }}
             >
-                {pending ? '⌛' : checked ? '✓' : ''}
+                {pending ? '' : checked ? '✓' : ''}
             </div>
         </div>
     );
@@ -156,8 +157,8 @@ const ZoneSelectorModal = ({
     return (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(4px)' }}>
             <div style={{ background: 'white', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
-                <h2 style={{ margin: '0 0 6px', fontSize: 20, fontWeight: 800, color: '#1a1f2e' }}>Select Zones for this Tablet</h2>
-                <p style={{ margin: '0 0 20px', color: '#8b93a7', fontSize: 13 }}>Select zones to manage on this tablet.</p>
+                <h2 style={{ margin: '0 0 6px', fontSize: 20, fontWeight: 800, color: '#1a1f2e' }}>Select Zones for this Device</h2>
+                <p style={{ margin: '0 0 20px', color: '#8b93a7', fontSize: 13 }}>Select zones to manage on this device.</p>
                 <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'flex-start' }}>
                     {allZones.map(z => {
                         const active = picked.includes(z);
@@ -174,17 +175,20 @@ const ZoneSelectorModal = ({
                         );
                     })}
                 </div>
-                <div style={{ display: 'flex', gap: 12, marginTop: 20 }}>
-                    <button onClick={onClose} style={{ flex: 1, padding: '13px', borderRadius: 12, border: '2px solid #e5e7eb', background: 'white', color: '#6b7280', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 15 }}>
+                <div style={{ display: 'flex', gap: 10, marginTop: 20, flexWrap: 'wrap' }}>
+                    <button onClick={onClose} style={{ flex: 1, padding: '13px', borderRadius: 12, border: '2px solid #e5e7eb', background: 'white', color: '#6b7280', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 14 }}>
                         Cancel
                     </button>
-                    <button onClick={() => onConfirm(picked)} disabled={picked.length === 0} style={{
+                    <button onClick={() => setPicked([])} style={{ flex: 1, padding: '13px', borderRadius: 12, border: '2px solid #fee2e2', background: '#fff5f5', color: '#ef4444', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 14 }}>
+                        Clear All
+                    </button>
+                    <button onClick={() => onConfirm(picked)} style={{
                         flex: 2, padding: '13px', borderRadius: 12, border: 'none',
                         background: picked.length === 0 ? '#e5e7eb' : 'linear-gradient(135deg, #16c784, #0891b2)',
                         color: picked.length === 0 ? '#9ca3af' : 'white',
-                        fontWeight: 800, cursor: picked.length === 0 ? 'not-allowed' : 'pointer', fontFamily: 'inherit', fontSize: 15
+                        fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', fontSize: 14
                     }}>
-                        Apply {picked.length > 0 ? `(${picked.length} zones)` : ''}
+                        Apply {picked.length > 0 ? `(${picked.length})` : '(none)'}
                     </button>
                 </div>
             </div>
@@ -192,15 +196,67 @@ const ZoneSelectorModal = ({
     );
 };
 
-/* ─── Member Card with tap-to-reveal name popup ─── */
-const MemberCard = ({ member, pending, onToggle }: { member: CheckInMember; pending: boolean; onToggle: () => void }) => {
+/* ─── Member Card with tap-to-reveal name popup, time display & edit, delete for walk-ins ─── */
+const MemberCard = ({
+    member, pending, onToggle, onDelete, onTimeEdit, backendUrl, token
+}: {
+    member: CheckInMember;
+    pending: boolean;
+    onToggle: () => void;
+    onDelete?: () => void;
+    onTimeEdit?: (newTime: string) => void;
+    backendUrl: string;
+    token: string;
+}) => {
     const [showPopup, setShowPopup] = useState(false);
+    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+    const [editingTime, setEditingTime] = useState(false);
+    const [timeInput, setTimeInput] = useState(''); // 24hr for the <input type="time">
+    const [savingTime, setSavingTime] = useState(false);
     const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    // Convert "09:30 AM" / "09:30 am" → "09:30" (24hr for <input type="time">)
+    const to24hr = (t: string): string => {
+        const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!m) return t.substring(0, 5); // already HH:MM or garbage
+        let h = parseInt(m[1]);
+        const min = m[2];
+        const ampm = m[3].toUpperCase();
+        if (ampm === 'PM' && h !== 12) h += 12;
+        if (ampm === 'AM' && h === 12) h = 0;
+        return `${String(h).padStart(2, '0')}:${min}`;
+    };
+
+    // Convert "09:30" (24hr) → "09:30 AM" (12hr display)
+    const to12hr = (t: string): string => {
+        const [hStr, mStr] = t.split(':');
+        let h = parseInt(hStr);
+        const ampm = h >= 12 ? 'PM' : 'AM';
+        h = h % 12 || 12;
+        return `${String(h).padStart(2, '0')}:${mStr} ${ampm}`;
+    };
 
     const handleNameTap = () => {
         if (timerRef.current) clearTimeout(timerRef.current);
         setShowPopup(true);
         timerRef.current = setTimeout(() => setShowPopup(false), 2000);
+    };
+
+    const handleSaveTime = async () => {
+        if (!timeInput.trim()) return;
+        const time12 = to12hr(timeInput); // convert from native 24hr input to 12hr string
+        setSavingTime(true);
+        try {
+            await fetch(`${backendUrl}/api/checkin/edittime`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ zone: member.zone, name: member.name, time: time12 })
+            });
+            onTimeEdit?.(time12);
+            setEditingTime(false);
+        } finally {
+            setSavingTime(false);
+        }
     };
 
     React.useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
@@ -209,63 +265,78 @@ const MemberCard = ({ member, pending, onToggle }: { member: CheckInMember; pend
         <div style={{
             background: member.checkedIn ? '#f0fdf4' : 'white',
             border: `2px solid ${member.checkedIn ? '#86efac' : '#f0f2f8'}`,
-            borderRadius: 14, padding: '12px 14px',
-            display: 'flex', alignItems: 'center', gap: 12,
+            borderRadius: 14, padding: '10px 12px',
+            display: 'flex', alignItems: 'center', gap: 10,
             boxShadow: member.checkedIn ? '0 2px 12px rgba(22,199,132,0.15)' : '0 2px 6px rgba(0,0,0,0.04)',
-            transition: 'all 0.2s ease', position: 'relative'
+            transition: 'all 0.2s ease', position: 'relative',
+            flexWrap: 'wrap'
         }}>
-            {/* Name popup tooltip */}
+            {/* Name popup overlay */}
             {showPopup && (
-                <div
-                    onClick={() => setShowPopup(false)}
-                    style={{
-                        position: 'fixed', inset: 0, zIndex: 300,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        pointerEvents: 'auto'
-                    }}
-                >
-                    <div style={{
-                        background: '#1a1f2e', color: 'white', borderRadius: 16,
-                        padding: '18px 28px', fontSize: 22, fontWeight: 800,
-                        boxShadow: '0 8px 40px rgba(0,0,0,0.4)', maxWidth: '80vw',
-                        textAlign: 'center', lineHeight: 1.3
-                    }}>
+                <div onClick={() => setShowPopup(false)} style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.3)', backdropFilter: 'blur(2px)' }}>
+                    <div style={{ background: '#1a1f2e', color: 'white', borderRadius: 16, padding: '18px 28px', fontSize: 22, fontWeight: 800, boxShadow: '0 8px 40px rgba(0,0,0,0.4)', maxWidth: '80vw', textAlign: 'center', lineHeight: 1.3 }}>
                         {member.name}
-                        {member.isWalkIn && (
-                            <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', marginTop: 6 }}>WALK-IN</div>
-                        )}
-                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Tap anywhere to dismiss</div>
+                        {member.isWalkIn && <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', marginTop: 6 }}>WALK-IN</div>}
+                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Tap to dismiss</div>
+                    </div>
+                </div>
+            )}
+
+            {/* Delete confirm */}
+            {showDeleteConfirm && (
+                <div style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.4)', backdropFilter: 'blur(2px)' }}>
+                    <div style={{ background: 'white', borderRadius: 16, padding: '24px 28px', maxWidth: 320, textAlign: 'center', boxShadow: '0 8px 40px rgba(0,0,0,0.2)' }}>
+                        <div style={{ fontSize: 36, marginBottom: 12 }}>🗑️</div>
+                        <div style={{ fontWeight: 800, fontSize: 16, marginBottom: 6, color: '#1a1f2e' }}>Delete Walk-in?</div>
+                        <div style={{ fontSize: 14, color: '#6b7280', marginBottom: 20 }}>{member.name} will be removed from the sheet.</div>
+                        <div style={{ display: 'flex', gap: 10 }}>
+                            <button onClick={() => setShowDeleteConfirm(false)} style={{ flex: 1, padding: '11px', borderRadius: 10, border: '2px solid #e5e7eb', background: 'white', color: '#6b7280', fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit', fontSize: 14 }}>Cancel</button>
+                            <button onClick={() => { setShowDeleteConfirm(false); onDelete?.(); }} style={{ flex: 1, padding: '11px', borderRadius: 10, border: 'none', background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: 'white', fontWeight: 800, cursor: 'pointer', fontFamily: 'inherit', fontSize: 14 }}>Delete</button>
+                        </div>
                     </div>
                 </div>
             )}
 
             {/* Avatar */}
-            <div style={{
-                width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
-                background: member.checkedIn ? 'linear-gradient(135deg, #16c784, #0891b2)' : '#f0f2f8',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontWeight: 800, fontSize: 15, color: member.checkedIn ? 'white' : '#9ca3af'
-            }}>
+            <div style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: member.checkedIn ? 'linear-gradient(135deg, #16c784, #0891b2)' : '#f0f2f8', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: member.checkedIn ? 'white' : '#9ca3af' }}>
                 {member.isWalkIn ? '🚶' : member.name.charAt(0)}
             </div>
 
-            {/* Name — tap to reveal full */}
+            {/* Name + time */}
             <div style={{ flex: 1, minWidth: 0 }} onClick={handleNameTap}>
-                <div style={{
-                    fontWeight: 700, fontSize: 15,
-                    color: member.checkedIn ? '#065f46' : '#1a1f2e',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    cursor: 'pointer'
-                }}>
+                <div style={{ fontWeight: 700, fontSize: 14, color: member.checkedIn ? '#065f46' : '#1a1f2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}>
                     {member.name}
-                    {member.isWalkIn && (
-                        <span style={{ fontSize: 10, fontWeight: 800, background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: 8, marginLeft: 6 }}>
-                            WALK-IN
-                        </span>
-                    )}
+                    {member.isWalkIn && <span style={{ fontSize: 9, fontWeight: 800, background: '#fef3c7', color: '#92400e', padding: '1px 5px', borderRadius: 6, marginLeft: 5 }}>WALK-IN</span>}
                 </div>
-                {member.mobile && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{member.mobile}</div>}
+                {/* Time row */}
+                {member.checkedIn && !editingTime && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                        <span style={{ fontSize: 11, color: '#16c784', fontWeight: 700 }}>🕐 {member.checkinTime || '--:--'}</span>
+                        <button onClick={e => { e.stopPropagation(); setTimeInput(to24hr(member.checkinTime || '')); setEditingTime(true); }}
+                            style={{ fontSize: 10, background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', padding: '1px 4px', borderRadius: 4, fontFamily: 'inherit' }}>✏️ edit</button>
+                    </div>
+                )}
+                {editingTime && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 4 }} onClick={e => e.stopPropagation()}>
+                        <input
+                            type="time" value={timeInput}
+                            onChange={e => setTimeInput(e.target.value)}
+                            style={{ fontSize: 13, padding: '4px 6px', borderRadius: 6, border: '1.5px solid #16c784', outline: 'none', fontFamily: 'inherit' }}
+                            autoFocus
+                        />
+                        <button onClick={handleSaveTime} disabled={savingTime} style={{ fontSize: 11, background: '#16c784', color: 'white', border: 'none', borderRadius: 6, padding: '4px 10px', cursor: 'pointer', fontWeight: 700, fontFamily: 'inherit' }}>
+                            {savingTime ? '...' : 'Save'}
+                        </button>
+                        <button onClick={() => setEditingTime(false)} style={{ fontSize: 11, background: '#f0f2f8', border: 'none', borderRadius: 6, padding: '4px 7px', cursor: 'pointer', fontFamily: 'inherit' }}>✕</button>
+                    </div>
+                )}
+                {member.mobile && !editingTime && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 1 }}>{member.mobile}</div>}
             </div>
+
+            {/* Delete (walk-in only) */}
+            {member.isWalkIn && (
+                <button onClick={() => setShowDeleteConfirm(true)} style={{ background: '#fee2e2', border: 'none', borderRadius: 8, padding: '6px 10px', cursor: 'pointer', fontSize: 14, color: '#ef4444', flexShrink: 0 }}>🗑</button>
+            )}
 
             {/* Swipe Slider */}
             <Toggle checked={member.checkedIn} pending={pending} onChange={onToggle} />
@@ -421,10 +492,11 @@ export default function CheckInPage() {
 
         const newVal = !member.checkedIn;
 
+        // Optimistic update
         setMembersByZone(prev => ({
             ...prev,
             [zone]: (prev[zone] || []).map(m =>
-                m.name === member.name ? { ...m, checkedIn: newVal } : m
+                m.name === member.name ? { ...m, checkedIn: newVal, checkinTime: newVal ? '' : undefined } : m
             )
         }));
         setPendingToggles(prev => new Set(prev).add(key));
@@ -436,6 +508,14 @@ export default function CheckInPage() {
                 body: JSON.stringify({ zone: member.zone, name: member.name, present: newVal })
             });
             if (!res.ok) throw new Error('Failed');
+            const data = await res.json();
+            // Store real timestamp returned from server
+            setMembersByZone(prev => ({
+                ...prev,
+                [zone]: (prev[zone] || []).map(m =>
+                    m.name === member.name ? { ...m, checkinTime: data.checkinTime || '' } : m
+                )
+            }));
         } catch {
             // Revert
             setMembersByZone(prev => ({
@@ -453,6 +533,34 @@ export default function CheckInPage() {
         setMembersByZone(prev => ({
             ...prev,
             [zone]: [...(prev[zone] || []), member]
+        }));
+    };
+
+    const handleWalkInDeleted = async (zone: string, member: CheckInMember) => {
+        // Optimistically remove
+        setMembersByZone(prev => ({
+            ...prev,
+            [zone]: (prev[zone] || []).filter(m => m.name !== member.name)
+        }));
+        try {
+            await fetch(`${backendUrl}/api/checkin/walkin`, {
+                method: 'DELETE',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                body: JSON.stringify({ zone: member.zone, name: member.name })
+            });
+        } catch {
+            // Revert on failure
+            setMembersByZone(prev => ({
+                ...prev,
+                [zone]: [...(prev[zone] || []), member]
+            }));
+        }
+    };
+
+    const handleTimeEdited = (zone: string, name: string, newTime: string) => {
+        setMembersByZone(prev => ({
+            ...prev,
+            [zone]: (prev[zone] || []).map(m => m.name === name ? { ...m, checkinTime: newTime } : m)
         }));
     };
 
@@ -586,6 +694,10 @@ export default function CheckInPage() {
                                                 member={member}
                                                 pending={pending}
                                                 onToggle={() => toggleCheckIn(currentZone, member)}
+                                                onDelete={member.isWalkIn ? () => handleWalkInDeleted(currentZone, member) : undefined}
+                                                onTimeEdit={(t) => handleTimeEdited(currentZone, member.name, t)}
+                                                backendUrl={backendUrl}
+                                                token={token!}
                                             />
                                         );
                                     })}

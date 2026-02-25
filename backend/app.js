@@ -553,17 +553,18 @@ app.post('/api/checkin', authenticateToken, async (req, res) => {
         }
 
         const exactRowNumber = rowIndex + 2;
-        const updateRange = `ExecutiveList!K${exactRowNumber}`;
+        const now = present ? new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
 
+        // Write K=Present/blank, L=time/blank
         await sheets.spreadsheets.values.update({
             spreadsheetId: SPREADSHEET_ID,
-            range: updateRange,
+            range: `ExecutiveList!K${exactRowNumber}:L${exactRowNumber}`,
             valueInputOption: 'USER_ENTERED',
-            resource: { values: [[present ? 'Present' : '']] },
+            resource: { values: [[present ? 'Present' : '', now]] },
         });
 
-        console.log(`Check-in updated for row ${exactRowNumber}`);
-        res.json({ status: 'success', message: 'Check-in updated successfully' });
+        console.log(`Check-in updated for row ${exactRowNumber}, time: ${now}`);
+        res.json({ status: 'success', checkinTime: now });
     } catch (error) {
         console.error('Error updating check-in:', error);
         res.status(500).json({ error: 'Error updating check-in: ' + error.message });
@@ -661,6 +662,7 @@ app.get('/api/checkin/members', authenticateToken, async (req, res) => {
                 name: (row[1] || '').trim(),
                 mobile: (row[2] || '').trim() || (row[7] || '').trim(),
                 checkedIn: (row[10] || '').trim() === 'Present',
+                checkinTime: (row[11] || '').trim(),  // Col L
                 isWalkIn: (row[4] || '').trim() === 'WalkIn'
             }));
 
@@ -684,25 +686,98 @@ app.post('/api/checkin/walkin', authenticateToken, async (req, res) => {
     console.log(`Walk-in: ${zone} - ${name} (${mobile})`);
 
     try {
-        // Append a new row: A=Zone, B=Name, C=Mobile, E=WalkIn, K=Present
+        const now = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+        // Append: A=Zone, B=Name, C=Mobile, E=WalkIn, K=Present, L=time
         await sheets.spreadsheets.values.append({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'ExecutiveList!A:K',
+            range: 'ExecutiveList!A:L',
             valueInputOption: 'USER_ENTERED',
             insertDataOption: 'INSERT_ROWS',
             resource: {
-                values: [[zone, name, mobile || '', '', 'WalkIn', '', '', '', '', '', 'Present']]
+                values: [[zone, name, mobile || '', '', 'WalkIn', '', '', '', '', '', 'Present', now]]
             },
         });
 
-        console.log(`Walk-in added: ${name} from ${zone}`);
-        res.json({ status: 'success', message: 'Walk-in added successfully' });
+        console.log(`Walk-in added: ${name} from ${zone} at ${now}`);
+        res.json({ status: 'success', checkinTime: now });
     } catch (error) {
         console.error('Error adding walk-in:', error);
         res.status(500).json({ error: 'Error adding walk-in: ' + error.message });
     }
 });
 
+// 12. DELETE /api/checkin/walkin - Delete a walk-in person from the sheet (Protected)
+app.delete('/api/checkin/walkin', authenticateToken, async (req, res) => {
+    const { zone, name } = req.body;
+    if (!zone || !name) return res.status(400).json({ error: 'Zone and name required' });
+
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ExecutiveList!A2:E',
+        });
+        const rows = response.data.values || [];
+        const rowIndex = rows.findIndex(row =>
+            (row[0] || '').trim().toLowerCase() === zone.trim().toLowerCase() &&
+            (row[1] || '').trim().toLowerCase() === name.trim().toLowerCase() &&
+            (row[4] || '').trim() === 'WalkIn'
+        );
+        if (rowIndex === -1) return res.status(404).json({ error: 'Walk-in not found' });
+
+        const sheetRowIndex = rowIndex + 1; // 0-indexed from row 2 = sheet index 1
+        // Get the spreadsheet metadata to find sheetId
+        const meta = await sheets.spreadsheets.get({ spreadsheetId: SPREADSHEET_ID });
+        const sheet = meta.data.sheets.find(s => s.properties.title === 'ExecutiveList');
+        if (!sheet) return res.status(404).json({ error: 'Sheet not found' });
+        const sheetId = sheet.properties.sheetId;
+
+        await sheets.spreadsheets.batchUpdate({
+            spreadsheetId: SPREADSHEET_ID,
+            resource: {
+                requests: [{
+                    deleteDimension: {
+                        range: { sheetId, dimension: 'ROWS', startIndex: sheetRowIndex + 1, endIndex: sheetRowIndex + 2 }
+                    }
+                }]
+            }
+        });
+        res.json({ status: 'success' });
+    } catch (error) {
+        console.error('Delete walk-in error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
+
+// 13. POST /api/checkin/edittime - Edit check-in time in col L (Protected)
+app.post('/api/checkin/edittime', authenticateToken, async (req, res) => {
+    const { zone, name, time } = req.body;
+    if (!zone || !name || !time) return res.status(400).json({ error: 'zone, name, time required' });
+
+    try {
+        const response = await sheets.spreadsheets.values.get({
+            spreadsheetId: SPREADSHEET_ID,
+            range: 'ExecutiveList!A2:B',
+        });
+        const rows = response.data.values || [];
+        const rowIndex = rows.findIndex(row =>
+            (row[0] || '').trim().toLowerCase() === zone.trim().toLowerCase() &&
+            (row[1] || '').trim().toLowerCase() === name.trim().toLowerCase()
+        );
+        if (rowIndex === -1) return res.status(404).json({ error: 'Member not found' });
+
+        const exactRowNumber = rowIndex + 2;
+        await sheets.spreadsheets.values.update({
+            spreadsheetId: SPREADSHEET_ID,
+            range: `ExecutiveList!L${exactRowNumber}`,
+            valueInputOption: 'USER_ENTERED',
+            resource: { values: [[time]] },
+        });
+        res.json({ status: 'success' });
+    } catch (error) {
+        console.error('Edit time error:', error);
+        res.status(500).json({ error: error.message });
+    }
+});
 
 app.listen(port, () => {
     console.log(`Backend server strictly running at http://localhost:${port}`);
