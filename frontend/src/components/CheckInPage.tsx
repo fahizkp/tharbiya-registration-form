@@ -352,7 +352,7 @@ export default function CheckInPage() {
     );
 
     return (
-        <div style={{ minHeight: '100vh', background: '#f0f2f8', fontFamily: "'Quicksand', 'Noto Sans Malayalam', sans-serif", display: 'flex', flexDirection: 'column' }}>
+        <div style={{ minHeight: '100vh', maxWidth: '100vw', overflowX: 'hidden', background: '#f0f2f8', fontFamily: "'Quicksand', 'Noto Sans Malayalam', sans-serif", display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
             {/* Zone Selector Modal */}
             {showZoneSelector && (
                 <ZoneSelectorModal
@@ -364,32 +364,32 @@ export default function CheckInPage() {
             )}
 
             {/* ── Top App Bar ── */}
-            <div style={{ background: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', padding: '0 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 60, flexShrink: 0, gap: 12 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: 'linear-gradient(135deg, #16c784, #0891b2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 16, color: 'white' }}>
+            <div style={{ background: 'white', boxShadow: '0 2px 12px rgba(0,0,0,0.07)', padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', minHeight: 56, flexShrink: 0, gap: 8, flexWrap: 'wrap', width: '100%', boxSizing: 'border-box' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', background: 'linear-gradient(135deg, #16c784, #0891b2)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: 'white', flexShrink: 0 }}>
                         {user?.username?.charAt(0).toUpperCase() || 'A'}
                     </div>
-                    <span style={{ fontWeight: 800, fontSize: 17, background: 'linear-gradient(135deg, #16c784, #0891b2)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+                    <span style={{ fontWeight: 800, fontSize: 15, background: 'linear-gradient(135deg, #16c784, #0891b2)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', whiteSpace: 'nowrap' }}>
                         ✅ Check-in
                     </span>
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                     {/* Live badge */}
-                    <div style={{ background: 'linear-gradient(135deg, #16c784, #0891b2)', borderRadius: 24, padding: '6px 16px', color: 'white', fontWeight: 800, fontSize: 15, whiteSpace: 'nowrap' }}>
-                        {presentCount} / {currentMembers.length} present
+                    <div style={{ background: 'linear-gradient(135deg, #16c784, #0891b2)', borderRadius: 20, padding: '5px 12px', color: 'white', fontWeight: 800, fontSize: 13, whiteSpace: 'nowrap' }}>
+                        {presentCount} / {currentMembers.length}
                     </div>
-                    <button onClick={() => setShowZoneSelector(true)} style={{ background: '#f0f2f8', border: 'none', borderRadius: 10, padding: '8px 14px', cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit', color: '#495057', whiteSpace: 'nowrap' }}>
+                    <button onClick={() => setShowZoneSelector(true)} style={{ background: '#f0f2f8', border: 'none', borderRadius: 8, padding: '7px 11px', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', color: '#495057', whiteSpace: 'nowrap' }}>
                         ⚙ Zones
                     </button>
-                    <Link to="/admin" style={{ background: '#f0f2f8', border: 'none', borderRadius: 10, padding: '8px 14px', color: '#495057', fontWeight: 700, fontSize: 13, textDecoration: 'none', whiteSpace: 'nowrap' }}>📊 Admin</Link>
-                    <button onClick={handleLogout} style={{ background: 'transparent', border: 'none', color: '#9ca3af', fontWeight: 600, fontSize: 13, cursor: 'pointer', fontFamily: 'inherit' }}>Out</button>
+                    <Link to="/admin" style={{ background: '#f0f2f8', borderRadius: 8, padding: '7px 11px', color: '#495057', fontWeight: 700, fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap' }}>📊</Link>
+                    <button onClick={handleLogout} style={{ background: 'transparent', border: 'none', color: '#9ca3af', fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Out</button>
                 </div>
             </div>
 
             {/* ── Zone Tabs ── */}
             {selectedZones.length > 0 ? (
                 <>
-                    <div style={{ background: 'white', borderBottom: '2px solid #f0f2f8', display: 'flex', overflowX: 'auto', flexShrink: 0, WebkitOverflowScrolling: 'touch' as any }}>
+                    <div style={{ background: 'white', borderBottom: '2px solid #f0f2f8', display: 'flex', overflowX: 'auto', flexShrink: 0, width: '100%', boxSizing: 'border-box', WebkitOverflowScrolling: 'touch' as any }}>
                         {selectedZones.map((zone, i) => {
                             const members = membersByZone[zone] || [];
                             const present = members.filter(m => m.checkedIn).length;
