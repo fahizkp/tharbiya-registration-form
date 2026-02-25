@@ -94,6 +94,8 @@ export default function Dashboard() {
     const [campaignStatus, setCampaignStatus] = useState<'all' | 'registered' | 'notRegistered'>('registered');
     const [callStatusFilter, setCallStatusFilter] = useState<string>('all');
     const [messageSaving, setMessageSaving] = useState(false);
+    const [statsExpanded, setStatsExpanded] = useState(false);
+    const [listExpanded, setListExpanded] = useState(false);
 
     const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -1006,6 +1008,151 @@ export default function Dashboard() {
                                 </select>
                             </div>
                         </div>
+
+                        {/* ── WhatsApp Summary Message ── */}
+                        {(() => {
+                            if (selectedZone !== 'all') return null; // Only show on All Zones
+
+                            // Build per-zone uncalled count from ALL members (not filtered)
+                            const zoneUncalledMap: Record<string, number> = {};
+                            members.forEach(m => {
+                                if (m.registered && !m.callStatus) {
+                                    zoneUncalledMap[m.zone] = (zoneUncalledMap[m.zone] || 0) + 1;
+                                }
+                            });
+                            const zoneEntries = Object.entries(zoneUncalledMap).filter(([, count]) => count > 0);
+                            if (zoneEntries.length === 0) return null;
+
+                            const waMessage = `കൺഫർമേഷൻ കോൾ ഇനിയും ബാക്കിയുള്ളത്...\n\n` +
+                                zoneEntries.map(([zone, count]) => `${zone} (${count})`).join('\n');
+
+                            const copyWaSummary = async () => {
+                                try {
+                                    await navigator.clipboard.writeText(waMessage);
+                                    alert('Copied to clipboard!');
+                                } catch {
+                                    alert('Failed to copy. Please copy manually.');
+                                }
+                            };
+
+                            return (
+                                <div style={{
+                                    background: '#f0fdf4',
+                                    border: '1.5px solid #86efac',
+                                    borderRadius: 16,
+                                    padding: '16px 20px',
+                                    marginBottom: 16,
+                                    position: 'relative'
+                                }}>
+                                    <div
+                                        onClick={() => setStatsExpanded(!statsExpanded)}
+                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                                    >
+                                        <div style={{ fontWeight: 800, fontSize: 15, color: '#065f46', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            💬 WhatsApp Summary Stats
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                            {statsExpanded && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); copyWaSummary(); }}
+                                                    style={{
+                                                        background: '#25D366', color: 'white', border: 'none',
+                                                        borderRadius: 10, padding: '6px 14px', cursor: 'pointer',
+                                                        fontWeight: 700, fontSize: 13, fontFamily: 'inherit',
+                                                        display: 'flex', alignItems: 'center', gap: 6
+                                                    }}
+                                                >
+                                                    📋 Copy
+                                                </button>
+                                            )}
+                                            <span style={{ fontSize: 18, color: '#065f46', userSelect: 'none' }}>
+                                                {statsExpanded ? '▲' : '▼'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {statsExpanded && (
+                                        <pre style={{
+                                            margin: '14px 0 0', fontFamily: 'Noto Sans Malayalam, Quicksand, sans-serif',
+                                            fontSize: 14, color: '#1a1f2e', lineHeight: 1.8,
+                                            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                            background: 'rgba(255,255,255,0.6)', borderRadius: 10,
+                                            padding: '12px 16px'
+                                        }}>
+                                            {waMessage}
+                                        </pre>
+                                    )}
+                                </div>
+                            );
+                        })()}
+
+                        {/* ── WhatsApp List Message ── */}
+                        {(() => {
+                            if (selectedZone === 'all') return null; // Only show for a specific zone
+                            if (campaignMembers.length === 0) return null;
+
+                            const waMessage = `${selectedZone} മണ്ഡലത്തിൽ നിന്ന് തർബിയക്ക് രജിസ്റ്റർ ചെയ്തവർ\n\n` +
+                                campaignMembers.map((m, idx) => `${idx + 1}. ${m.name} ${m.mobile}`).join('\n');
+
+                            const copyWaList = async () => {
+                                try {
+                                    await navigator.clipboard.writeText(waMessage);
+                                    alert('Copied to clipboard!');
+                                } catch {
+                                    alert('Failed to copy. Please copy manually.');
+                                }
+                            };
+
+                            return (
+                                <div style={{
+                                    background: '#f8fafc',
+                                    border: '1.5px solid #cbd5e1',
+                                    borderRadius: 16,
+                                    padding: '16px 20px',
+                                    marginBottom: 28,
+                                    position: 'relative'
+                                }}>
+                                    <div
+                                        onClick={() => setListExpanded(!listExpanded)}
+                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                                    >
+                                        <div style={{ fontWeight: 800, fontSize: 15, color: '#334155', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            💬 WhatsApp Member List
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                            {listExpanded && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); copyWaList(); }}
+                                                    style={{
+                                                        background: '#25D366', color: 'white', border: 'none',
+                                                        borderRadius: 10, padding: '6px 14px', cursor: 'pointer',
+                                                        fontWeight: 700, fontSize: 13, fontFamily: 'inherit',
+                                                        display: 'flex', alignItems: 'center', gap: 6
+                                                    }}
+                                                >
+                                                    📋 Copy
+                                                </button>
+                                            )}
+                                            <span style={{ fontSize: 18, color: '#334155', userSelect: 'none' }}>
+                                                {listExpanded ? '▲' : '▼'}
+                                            </span>
+                                        </div>
+                                    </div>
+
+                                    {listExpanded && (
+                                        <pre style={{
+                                            margin: '14px 0 0', fontFamily: 'Noto Sans Malayalam, Quicksand, sans-serif',
+                                            fontSize: 14, color: '#1a1f2e', lineHeight: 1.8,
+                                            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                            background: 'rgba(255,255,255,0.6)', borderRadius: 10,
+                                            padding: '12px 16px', maxHeight: '300px', overflowY: 'auto'
+                                        }}>
+                                            {waMessage}
+                                        </pre>
+                                    )}
+                                </div>
+                            );
+                        })()}
 
                         {/* Campaign List */}
                         <div className="members-list">
