@@ -17,87 +17,122 @@ interface ZoneStat {
     percentage: number;
 }
 
-/* ─── Toggle Switch Styles injected once ─── */
+/* ─── Swipe Slider Styles injected once ─── */
 const TOGGLE_STYLE_ID = 'checkin-toggle-styles';
 if (!document.getElementById(TOGGLE_STYLE_ID)) {
     const s = document.createElement('style');
     s.id = TOGGLE_STYLE_ID;
     s.textContent = `
-        @keyframes thumbBounce {
-            0%   { transform: scale(1); }
-            40%  { transform: scale(1.18); }
-            70%  { transform: scale(0.92); }
-            100% { transform: scale(1); }
-        }
-        @keyframes glowPulse {
+        @keyframes sliderGlow {
             0%   { box-shadow: 0 0 0px rgba(22,199,132,0); }
-            60%  { box-shadow: 0 0 18px rgba(22,199,132,0.55); }
+            60%  { box-shadow: 0 0 20px rgba(22,199,132,0.6); }
             100% { box-shadow: 0 0 10px rgba(22,199,132,0.35); }
         }
-        .toggle-thumb-on  { animation: thumbBounce 0.38s cubic-bezier(.36,.07,.19,.97); }
-        .toggle-track-on  { animation: glowPulse 0.45s ease forwards; }
+        @keyframes thumbBounce {
+            0%   { transform: scale(1); }
+            40%  { transform: scale(1.2); }
+            80%  { transform: scale(0.92); }
+            100% { transform: scale(1); }
+        }
+        .slider-glow { animation: sliderGlow 0.5s ease forwards; }
+        .thumb-bounce { animation: thumbBounce 0.35s ease; }
     `;
     document.head.appendChild(s);
 }
 
-/* ─── Toggle Switch component ─── */
-const Toggle = ({ checked, onChange, pending }: { checked: boolean; onChange: () => void; pending: boolean }) => {
-    const [animKey, setAnimKey] = React.useState(0);
+/* ─── Swipe-to-confirm Slider ─── */
+const TRACK_W = 110;
+const THUMB_D = 38;
+const MAX_LEFT = TRACK_W - THUMB_D - 4; // rightmost thumb position
+const SWIPE_THRESHOLD = MAX_LEFT * 0.55; // must drag >55% to trigger
 
-    const handleClick = () => {
+const Toggle = ({ checked, onChange, pending }: { checked: boolean; onChange: () => void; pending: boolean }) => {
+    const [dragging, setDragging] = React.useState(false);
+    const [dragX, setDragX] = React.useState<number | null>(null);
+    const [bounceKey, setBounceKey] = React.useState(0);
+    const startXRef = React.useRef(0);
+    const trackRef = React.useRef<HTMLDivElement>(null);
+
+    const thumbLeft = dragging && dragX !== null
+        ? Math.max(3, Math.min(dragX, MAX_LEFT + 3))
+        : checked ? MAX_LEFT + 3 : 3;
+
+    const getClientX = (e: React.TouchEvent | React.MouseEvent) =>
+        'touches' in e ? e.touches[0].clientX : (e as React.MouseEvent).clientX;
+
+    const onStart = (e: React.TouchEvent | React.MouseEvent) => {
         if (pending) return;
-        setAnimKey(k => k + 1); // re-trigger animation
-        onChange();
+        startXRef.current = getClientX(e);
+        setDragging(true);
+        setDragX(checked ? MAX_LEFT + 3 : 3);
     };
 
+    const onMove = (e: React.TouchEvent | React.MouseEvent) => {
+        if (!dragging) return;
+        const delta = getClientX(e) - startXRef.current;
+        const base = checked ? MAX_LEFT + 3 : 3;
+        setDragX(Math.max(3, Math.min(base + delta, MAX_LEFT + 3)));
+    };
+
+    const onEnd = () => {
+        if (!dragging) return;
+        setDragging(false);
+        const base = checked ? MAX_LEFT + 3 : 3;
+        const delta = (dragX ?? base) - base;
+        // toggling OFF: drag left > threshold; toggling ON: drag right > threshold
+        const shouldToggle = checked
+            ? delta < -SWIPE_THRESHOLD
+            : delta > SWIPE_THRESHOLD;
+        if (shouldToggle) {
+            setBounceKey(k => k + 1);
+            onChange();
+        }
+        setDragX(null);
+    };
+
+    const progress = ((thumbLeft - 3) / MAX_LEFT) * 100;
+
     return (
-        <button
-            onClick={handleClick}
-            disabled={pending}
-            aria-label={checked ? 'Mark absent' : 'Mark present'}
-            className={checked ? 'toggle-track-on' : ''}
+        <div
+            ref={trackRef}
+            onMouseDown={onStart} onMouseMove={onMove} onMouseUp={onEnd} onMouseLeave={onEnd}
+            onTouchStart={onStart} onTouchMove={onMove} onTouchEnd={onEnd}
+            className={checked ? 'slider-glow' : ''}
             style={{
-                width: 90, height: 40, borderRadius: 20, border: 'none',
-                cursor: pending ? 'wait' : 'pointer',
+                width: TRACK_W, height: 44, borderRadius: 22, flexShrink: 0,
                 background: checked
-                    ? 'linear-gradient(135deg, #16c784, #0ca772)'
-                    : '#d1d5db',
-                position: 'relative',
-                transition: 'background 0.3s ease',
-                flexShrink: 0, padding: 0, outline: 'none',
+                    ? `linear-gradient(90deg, #16c784 ${progress}%, #0ca772 100%)`
+                    : `linear-gradient(90deg, #16c784 ${progress}%, #d1d5db ${progress}%)`,
+                position: 'relative', cursor: pending ? 'wait' : 'ew-resize',
+                userSelect: 'none', touchAction: 'none',
+                transition: dragging ? 'none' : 'background 0.3s ease',
             }}
         >
-            {/* Track label */}
-            <span style={{
-                position: 'absolute',
-                left: checked ? 10 : 'auto',
-                right: checked ? 'auto' : 8,
-                top: '50%', transform: 'translateY(-50%)',
-                fontSize: 10, fontWeight: 800, color: checked ? 'rgba(255,255,255,0.9)' : '#9ca3af',
-                letterSpacing: 0.5, pointerEvents: 'none', transition: 'all 0.3s ease',
-                userSelect: 'none'
-            }}>
-                {pending ? '…' : checked ? 'IN' : ''}
-            </span>
+            {/* Arrow hints */}
+            {!checked && !dragging && (
+                <span style={{ position: 'absolute', left: 44, top: '50%', transform: 'translateY(-50%)', fontSize: 13, color: 'rgba(255,255,255,0.5)', pointerEvents: 'none', letterSpacing: -2 }}>››</span>
+            )}
+            {/* IN label */}
+            {checked && (
+                <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', fontSize: 11, fontWeight: 800, color: 'rgba(255,255,255,0.85)', pointerEvents: 'none', letterSpacing: 1 }}>IN</span>
+            )}
             {/* Thumb */}
-            <span
-                key={animKey}
-                className={checked ? 'toggle-thumb-on' : ''}
+            <div
+                key={bounceKey}
+                className={bounceKey > 0 ? 'thumb-bounce' : ''}
                 style={{
-                    position: 'absolute',
-                    top: 3,
-                    left: checked ? 53 : 3,
-                    width: 34, height: 34, borderRadius: '50%',
+                    position: 'absolute', top: 3, left: thumbLeft,
+                    width: THUMB_D, height: THUMB_D, borderRadius: '50%',
                     background: 'white',
-                    boxShadow: '0 3px 8px rgba(0,0,0,0.22)',
-                    transition: 'left 0.28s cubic-bezier(0.34, 1.56, 0.64, 1)',
+                    boxShadow: '0 3px 10px rgba(0,0,0,0.25)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 14, pointerEvents: 'none'
+                    fontSize: 15, pointerEvents: 'none',
+                    transition: dragging ? 'none' : 'left 0.3s cubic-bezier(0.34,1.56,0.64,1)',
                 }}
             >
                 {pending ? '⌛' : checked ? '✓' : ''}
-            </span>
-        </button>
+            </div>
+        </div>
     );
 };
 
@@ -115,24 +150,23 @@ const ZoneSelectorModal = ({
         setPicked(prev =>
             prev.includes(z)
                 ? prev.filter(x => x !== z)
-                : prev.length < 6 ? [...prev, z] : prev
+                : [...prev, z]
         );
     };
     return (
         <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20, backdropFilter: 'blur(4px)' }}>
             <div style={{ background: 'white', borderRadius: 20, padding: '28px 24px', width: '100%', maxWidth: 480, maxHeight: '80vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(0,0,0,0.2)' }}>
                 <h2 style={{ margin: '0 0 6px', fontSize: 20, fontWeight: 800, color: '#1a1f2e' }}>Select Zones for this Tablet</h2>
-                <p style={{ margin: '0 0 20px', color: '#8b93a7', fontSize: 13 }}>Pick up to 6 zones. Each becomes a tab.</p>
+                <p style={{ margin: '0 0 20px', color: '#8b93a7', fontSize: 13 }}>Select zones to manage on this tablet.</p>
                 <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexWrap: 'wrap', gap: 10, alignContent: 'flex-start' }}>
                     {allZones.map(z => {
                         const active = picked.includes(z);
-                        const disabled = !active && picked.length >= 6;
                         return (
-                            <button key={z} onClick={() => toggle(z)} disabled={disabled} style={{
+                            <button key={z} onClick={() => toggle(z)} style={{
                                 padding: '10px 18px', borderRadius: 24, border: `2px solid ${active ? '#16c784' : '#e5e7eb'}`,
-                                background: active ? '#dcfce7' : disabled ? '#f9fafb' : 'white',
-                                color: active ? '#065f46' : disabled ? '#9ca3af' : '#374151',
-                                fontWeight: 700, fontSize: 14, cursor: disabled ? 'not-allowed' : 'pointer',
+                                background: active ? '#dcfce7' : 'white',
+                                color: active ? '#065f46' : '#374151',
+                                fontWeight: 700, fontSize: 14, cursor: 'pointer',
                                 fontFamily: 'inherit', transition: 'all 0.15s ease'
                             }}>
                                 {active ? '✓ ' : ''}{z}
@@ -154,6 +188,87 @@ const ZoneSelectorModal = ({
                     </button>
                 </div>
             </div>
+        </div>
+    );
+};
+
+/* ─── Member Card with tap-to-reveal name popup ─── */
+const MemberCard = ({ member, pending, onToggle }: { member: CheckInMember; pending: boolean; onToggle: () => void }) => {
+    const [showPopup, setShowPopup] = useState(false);
+    const timerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const handleNameTap = () => {
+        if (timerRef.current) clearTimeout(timerRef.current);
+        setShowPopup(true);
+        timerRef.current = setTimeout(() => setShowPopup(false), 2000);
+    };
+
+    React.useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+    return (
+        <div style={{
+            background: member.checkedIn ? '#f0fdf4' : 'white',
+            border: `2px solid ${member.checkedIn ? '#86efac' : '#f0f2f8'}`,
+            borderRadius: 14, padding: '12px 14px',
+            display: 'flex', alignItems: 'center', gap: 12,
+            boxShadow: member.checkedIn ? '0 2px 12px rgba(22,199,132,0.15)' : '0 2px 6px rgba(0,0,0,0.04)',
+            transition: 'all 0.2s ease', position: 'relative'
+        }}>
+            {/* Name popup tooltip */}
+            {showPopup && (
+                <div
+                    onClick={() => setShowPopup(false)}
+                    style={{
+                        position: 'fixed', inset: 0, zIndex: 300,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        pointerEvents: 'auto'
+                    }}
+                >
+                    <div style={{
+                        background: '#1a1f2e', color: 'white', borderRadius: 16,
+                        padding: '18px 28px', fontSize: 22, fontWeight: 800,
+                        boxShadow: '0 8px 40px rgba(0,0,0,0.4)', maxWidth: '80vw',
+                        textAlign: 'center', lineHeight: 1.3
+                    }}>
+                        {member.name}
+                        {member.isWalkIn && (
+                            <div style={{ fontSize: 12, fontWeight: 700, color: '#f59e0b', marginTop: 6 }}>WALK-IN</div>
+                        )}
+                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 6 }}>Tap anywhere to dismiss</div>
+                    </div>
+                </div>
+            )}
+
+            {/* Avatar */}
+            <div style={{
+                width: 40, height: 40, borderRadius: '50%', flexShrink: 0,
+                background: member.checkedIn ? 'linear-gradient(135deg, #16c784, #0891b2)' : '#f0f2f8',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontWeight: 800, fontSize: 15, color: member.checkedIn ? 'white' : '#9ca3af'
+            }}>
+                {member.isWalkIn ? '🚶' : member.name.charAt(0)}
+            </div>
+
+            {/* Name — tap to reveal full */}
+            <div style={{ flex: 1, minWidth: 0 }} onClick={handleNameTap}>
+                <div style={{
+                    fontWeight: 700, fontSize: 15,
+                    color: member.checkedIn ? '#065f46' : '#1a1f2e',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                    cursor: 'pointer'
+                }}>
+                    {member.name}
+                    {member.isWalkIn && (
+                        <span style={{ fontSize: 10, fontWeight: 800, background: '#fef3c7', color: '#92400e', padding: '2px 6px', borderRadius: 8, marginLeft: 6 }}>
+                            WALK-IN
+                        </span>
+                    )}
+                </div>
+                {member.mobile && <div style={{ fontSize: 11, color: '#9ca3af', marginTop: 2 }}>{member.mobile}</div>}
+            </div>
+
+            {/* Swipe Slider */}
+            <Toggle checked={member.checkedIn} pending={pending} onChange={onToggle} />
         </div>
     );
 };
@@ -271,7 +386,7 @@ export default function CheckInPage() {
             const names: string[] = (data.zones as ZoneStat[]).map((z: ZoneStat) => z.name);
             setAllZones(names);
             // Default: pick first 6 (or fewer)
-            const defaults = names.slice(0, 6);
+            const defaults = names;
             setSelectedZones(defaults);
         } catch (e) {
             console.error(e);
@@ -381,7 +496,7 @@ export default function CheckInPage() {
                     <button onClick={() => setShowZoneSelector(true)} style={{ background: '#f0f2f8', border: 'none', borderRadius: 8, padding: '7px 11px', cursor: 'pointer', fontWeight: 700, fontSize: 12, fontFamily: 'inherit', color: '#495057', whiteSpace: 'nowrap' }}>
                         ⚙ Zones
                     </button>
-                    <Link to="/admin" style={{ background: '#f0f2f8', borderRadius: 8, padding: '7px 11px', color: '#495057', fontWeight: 700, fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap' }}>📊</Link>
+                    <Link to="/admin" style={{ background: '#f0f2f8', borderRadius: 8, padding: '7px 11px', color: '#495057', fontWeight: 700, fontSize: 12, textDecoration: 'none', whiteSpace: 'nowrap' }}>Admin</Link>
                     <button onClick={handleLogout} style={{ background: 'transparent', border: 'none', color: '#9ca3af', fontWeight: 600, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>Out</button>
                 </div>
             </div>
@@ -466,41 +581,12 @@ export default function CheckInPage() {
                                         const key = `${member.zone}||${member.name}`;
                                         const pending = pendingToggles.has(key);
                                         return (
-                                            <div key={idx} style={{
-                                                background: member.checkedIn ? '#f0fdf4' : 'white',
-                                                border: `2px solid ${member.checkedIn ? '#86efac' : '#f0f2f8'}`,
-                                                borderRadius: 14, padding: '14px 18px',
-                                                display: 'flex', alignItems: 'center', gap: 14,
-                                                boxShadow: member.checkedIn ? '0 2px 12px rgba(22,199,132,0.15)' : '0 2px 6px rgba(0,0,0,0.04)',
-                                                transition: 'all 0.2s ease'
-                                            }}>
-                                                {/* Avatar */}
-                                                <div style={{
-                                                    width: 42, height: 42, borderRadius: '50%', flexShrink: 0,
-                                                    background: member.checkedIn ? 'linear-gradient(135deg, #16c784, #0891b2)' : '#f0f2f8',
-                                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                                    fontWeight: 800, fontSize: 16,
-                                                    color: member.checkedIn ? 'white' : '#9ca3af'
-                                                }}>
-                                                    {member.isWalkIn ? '🚶' : member.name.charAt(0)}
-                                                </div>
-
-                                                {/* Name + info */}
-                                                <div style={{ flex: 1, minWidth: 0 }}>
-                                                    <div style={{ fontWeight: 700, fontSize: 16, color: member.checkedIn ? '#065f46' : '#1a1f2e', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                                                        {member.name}
-                                                        {member.isWalkIn && <span style={{ fontSize: 11, fontWeight: 800, background: '#fef3c7', color: '#92400e', padding: '2px 8px', borderRadius: 10, marginLeft: 8 }}>WALK-IN</span>}
-                                                    </div>
-                                                    {member.mobile && <div style={{ fontSize: 12, color: '#9ca3af', marginTop: 2 }}>{member.mobile}</div>}
-                                                </div>
-
-                                                {/* Toggle */}
-                                                <Toggle
-                                                    checked={member.checkedIn}
-                                                    pending={pending}
-                                                    onChange={() => toggleCheckIn(currentZone, member)}
-                                                />
-                                            </div>
+                                            <MemberCard
+                                                key={idx}
+                                                member={member}
+                                                pending={pending}
+                                                onToggle={() => toggleCheckIn(currentZone, member)}
+                                            />
                                         );
                                     })}
                                 </div>
