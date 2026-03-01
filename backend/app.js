@@ -392,7 +392,7 @@ app.get('/api/dashboard/members', authenticateToken, async (req, res) => {
         
         const response = await sheets.spreadsheets.values.get({
             spreadsheetId: SPREADSHEET_ID,
-            range: 'ExecutiveList!A2:J',
+            range: 'ExecutiveList!A2:K',
         });
 
         let rows = response.data.values || [];
@@ -416,7 +416,8 @@ app.get('/api/dashboard/members', authenticateToken, async (req, res) => {
                     executive: (row[6] || '').trim(),
                     registered: (row[4] || '').trim() === 'Success',
                     callStatus: (row[8] || '').trim(),
-                    callRemarks: (row[9] || '').trim()
+                    callRemarks: (row[9] || '').trim(),
+                    checkedIn: (row[10] || '').trim() === 'Present'
                 };
             });
 

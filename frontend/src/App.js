@@ -7,6 +7,7 @@ import Dashboard from './components/Dashboard';
 import CheckInPage from './components/CheckInPage';
 import StatisticsPage from './components/StatisticsPage';
 import RankingPage from './components/RankingPage';
+import ParticipantCountPage from './components/ParticipantCountPage';
 import './App.css';
 
 
@@ -66,6 +67,14 @@ function AppRoutes() {
                 element={
                     <ProtectedRoute>
                         <RankingPage />
+                    </ProtectedRoute>
+                }
+            />
+            <Route
+                path="/participant-count"
+                element={
+                    <ProtectedRoute>
+                        <ParticipantCountPage />
                     </ProtectedRoute>
                 }
             />

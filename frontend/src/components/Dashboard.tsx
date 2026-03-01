@@ -41,6 +41,7 @@ interface Member {
     registered: boolean;
     callStatus?: string;
     callRemarks?: string;
+    checkedIn?: boolean;
 }
 
 const CALL_STATUS_OPTIONS = [
@@ -96,6 +97,7 @@ export default function Dashboard() {
     const [messageSaving, setMessageSaving] = useState(false);
     const [statsExpanded, setStatsExpanded] = useState(false);
     const [listExpanded, setListExpanded] = useState(false);
+    const [absentListExpanded, setAbsentListExpanded] = useState(false);
 
     const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -427,6 +429,7 @@ export default function Dashboard() {
                     <li><Link to="/checkin" style={{ display: 'block', padding: '12px 20px', color: '#8b93a7', fontWeight: 600, fontSize: '15px', textDecoration: 'none', borderRadius: '12px' }}>✅ Check-in</Link></li>
                     <li><Link to="/statistics" style={{ display: 'block', padding: '12px 20px', color: '#8b93a7', fontWeight: 600, fontSize: '15px', textDecoration: 'none', borderRadius: '12px' }}>📈 Statistics</Link></li>
                     <li><Link to="/ranking" style={{ display: 'block', padding: '12px 20px', color: '#8b93a7', fontWeight: 600, fontSize: '15px', textDecoration: 'none', borderRadius: '12px' }}>🏆 Ranking</Link></li>
+                    <li><Link to="/participant-count" style={{ display: 'block', padding: '12px 20px', color: '#8b93a7', fontWeight: 600, fontSize: '15px', textDecoration: 'none', borderRadius: '12px' }}>📊 Participant Count</Link></li>
                     <li><a href="/">Registration Form</a></li>
                     <li><button onClick={handleLogout} style={{
                         width: '100%',
@@ -1154,6 +1157,74 @@ export default function Dashboard() {
                             );
                         })()}
 
+                        {/* ── WhatsApp Absent List Message ── */}
+                        {(() => {
+                            if (selectedZone === 'all') return null; // Only show for a specific zone
+                            const absentMembers = campaignMembers.filter(m => m.registered && !m.checkedIn);
+                            if (absentMembers.length === 0) return null;
+
+                            const waMessage = `${selectedZone} മണ്ഡലത്തിൽ തർബിയക്ക് രജിസ്റ്റർ ചെയ്തിട്ട് പങ്കെടുക്കാത്തവർ\n\n` +
+                                absentMembers.map((m, idx) => `${idx + 1}. ${m.name} ${m.mobile}`).join('\n');
+
+                            const copyWaAbsent = async () => {
+                                try {
+                                    await navigator.clipboard.writeText(waMessage);
+                                    alert('Copied to clipboard!');
+                                } catch {
+                                    alert('Failed to copy. Please copy manually.');
+                                }
+                            };
+
+                            return (
+                                <div style={{
+                                    background: '#fff1f2',
+                                    border: '1.5px solid #fecdd3',
+                                    borderRadius: 16,
+                                    padding: '16px 20px',
+                                    marginBottom: 28,
+                                    position: 'relative'
+                                }}>
+                                    <div
+                                        onClick={() => setAbsentListExpanded(!absentListExpanded)}
+                                        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                                    >
+                                        <div style={{ fontWeight: 800, fontSize: 15, color: '#be123c', display: 'flex', alignItems: 'center', gap: 8 }}>
+                                            💬 WhatsApp Absent Member List
+                                        </div>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                                            {absentListExpanded && (
+                                                <button
+                                                    onClick={(e) => { e.stopPropagation(); copyWaAbsent(); }}
+                                                    style={{
+                                                        background: '#25D366', color: 'white', border: 'none',
+                                                        borderRadius: 10, padding: '6px 14px', cursor: 'pointer',
+                                                        fontWeight: 700, fontSize: 13, fontFamily: 'inherit',
+                                                        display: 'flex', alignItems: 'center', gap: 6
+                                                    }}
+                                                >
+                                                    📋 Copy
+                                                </button>
+                                            )}
+                                            <span style={{ fontSize: 18, color: '#be123c', userSelect: 'none' }}>
+                                                {absentListExpanded ? '▲' : '▼'}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    {absentListExpanded && (
+                                        <pre style={{
+                                            margin: '14px 0 0', fontFamily: 'Noto Sans Malayalam, Quicksand, sans-serif',
+                                            fontSize: 14, color: '#1a1f2e', lineHeight: 1.8,
+                                            whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                                            background: 'rgba(255,255,255,0.6)', borderRadius: 10,
+                                            padding: '12px 16px', maxHeight: '300px', overflowY: 'auto'
+                                        }}>
+                                            {waMessage}
+                                        </pre>
+                                    )}
+                                </div>
+                            );
+                        })()}
+
                         {/* Campaign List */}
                         <div className="members-list">
                             <h3>📞 Call List - {selectedZone === 'all' ? 'All Zones' : selectedZone} ({campaignMembers.filter(m => {
@@ -1191,7 +1262,13 @@ export default function Dashboard() {
                                                 )}
                                             </div>
                                             <div style={{ color: '#666', fontSize: '14px', marginBottom: '5px' }}>{member.zone}</div>
-                                            <div style={{ color: '#888', fontSize: '14px', marginBottom: '15px' }}>{member.mobile || 'No Mobile'}</div>
+                                            <div style={{ color: '#888', fontSize: '14px', marginBottom: '5px' }}>{member.mobile || 'No Mobile'}</div>
+
+                                            {member.registered && (
+                                                <div style={{ fontSize: '14px', marginBottom: '15px', fontWeight: 600, color: member.checkedIn ? '#16a34a' : '#ef4444' }}>
+                                                    {member.checkedIn ? '✅ Present' : '❌ Absent'}
+                                                </div>
+                                            )}
 
                                             {/* Call Status Dropdown */}
                                             <div style={{ marginBottom: '15px' }}>
