@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -76,6 +76,8 @@ export default function RankingPage() {
     const [loading, setLoading] = useState(true);
     const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
     const [countdown, setCountdown] = useState(30);
+    const [isFullscreen, setIsFullscreen] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
 
     const backendUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
@@ -123,6 +125,24 @@ export default function RankingPage() {
         return () => clearInterval(timer);
     }, [lastUpdated]);
 
+    useEffect(() => {
+        const onFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', onFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', onFullscreenChange);
+    }, []);
+
+    const toggleFullScreen = () => {
+        if (!document.fullscreenElement) {
+            containerRef.current?.requestFullscreen?.().catch(err => {
+                console.error(`Error attempting to enable fullscreen: ${err.message}`);
+            });
+        } else {
+            document.exitFullscreen?.();
+        }
+    };
+
     if (isLoading || loading) return (
         <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', background: 'linear-gradient(135deg, #0d1117, #1a1f2e)', fontFamily: 'Quicksand, sans-serif' }}>
             <div style={{ textAlign: 'center', color: 'white' }}>
@@ -136,7 +156,7 @@ export default function RankingPage() {
     const rest = zones.slice(3);
 
     return (
-        <div style={{ minHeight: '100vh', background: 'linear-gradient(160deg, #0d1117 0%, #0d1b2a 50%, #1a0d2e 100%)', fontFamily: "'Quicksand', 'Noto Sans Malayalam', sans-serif", color: 'white', overflowX: 'hidden' }}>
+        <div ref={containerRef} style={{ minHeight: '100vh', background: 'linear-gradient(160deg, #0d1117 0%, #0d1b2a 50%, #1a0d2e 100%)', fontFamily: "'Quicksand', 'Noto Sans Malayalam', sans-serif", color: 'white', overflowX: 'hidden', overflowY: 'auto' }}>
             {/* Top Banner */}
             <div style={{
                 background: 'linear-gradient(90deg, rgba(255,215,0,0.08), rgba(255,215,0,0.03), rgba(255,215,0,0.08))',
@@ -166,6 +186,9 @@ export default function RankingPage() {
                                 <div style={{ fontSize: 11, color: '#6b7280', fontWeight: 600, marginTop: 2, textTransform: 'uppercase', letterSpacing: 1 }}>{s.label}</div>
                             </div>
                         ))}
+                        <button onClick={toggleFullScreen} style={{ background: 'rgba(255,255,255,0.08)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '10px 18px', borderRadius: 12, cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }}>
+                            {isFullscreen ? '◧ Exit Fullscreen' : '⛶ Fullscreen'}
+                        </button>
                         <button onClick={fetchRanking} style={{ background: 'rgba(255,215,0,0.1)', border: '1px solid rgba(255,215,0,0.3)', color: '#FFD700', padding: '10px 18px', borderRadius: 12, cursor: 'pointer', fontWeight: 700, fontSize: 13, fontFamily: 'inherit' }}>
                             🔄 Refresh
                         </button>
