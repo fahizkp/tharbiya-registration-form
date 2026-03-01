@@ -553,7 +553,7 @@ app.post('/api/checkin', authenticateToken, async (req, res) => {
         }
 
         const exactRowNumber = rowIndex + 2;
-        const now = present ? new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
+        const now = present ? new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }) : '';
 
         // Write K=Present/blank, L=time/blank
         await sheets.spreadsheets.values.update({
@@ -686,7 +686,7 @@ app.post('/api/checkin/walkin', authenticateToken, async (req, res) => {
     console.log(`Walk-in: ${zone} - ${name} (${mobile})`);
 
     try {
-        const now = new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+        const now = new Date().toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true });
         // Append: A=Zone, B=Name, C=Mobile, E=WalkIn, K=Present, L=time
         await sheets.spreadsheets.values.append({
             spreadsheetId: SPREADSHEET_ID,
@@ -736,7 +736,7 @@ app.delete('/api/checkin/walkin', authenticateToken, async (req, res) => {
             resource: {
                 requests: [{
                     deleteDimension: {
-                        range: { sheetId, dimension: 'ROWS', startIndex: sheetRowIndex + 1, endIndex: sheetRowIndex + 2 }
+                        range: { sheetId, dimension: 'ROWS', startIndex: sheetRowIndex, endIndex: sheetRowIndex + 1 }
                     }
                 }]
             }

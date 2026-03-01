@@ -361,7 +361,8 @@ const WalkInForm = ({ zone, token, backendUrl, onAdded }: { zone: string; token:
                 body: JSON.stringify({ zone, name: name.trim(), mobile: mobile.trim() })
             });
             if (!res.ok) throw new Error('Failed');
-            onAdded({ zone, name: name.trim(), mobile: mobile.trim(), checkedIn: true, isWalkIn: true });
+            const data = await res.json();
+            onAdded({ zone, name: name.trim(), mobile: mobile.trim(), checkedIn: true, isWalkIn: true, checkinTime: data.checkinTime });
             setName(''); setMobile(''); setOpen(false);
         } catch {
             alert('Failed to add walk-in. Please try again.');
@@ -543,17 +544,19 @@ export default function CheckInPage() {
             [zone]: (prev[zone] || []).filter(m => m.name !== member.name)
         }));
         try {
-            await fetch(`${backendUrl}/api/checkin/walkin`, {
+            const res = await fetch(`${backendUrl}/api/checkin/walkin`, {
                 method: 'DELETE',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
                 body: JSON.stringify({ zone: member.zone, name: member.name })
             });
+            if (!res.ok) throw new Error('Failed to delete walk-in');
         } catch {
             // Revert on failure
             setMembersByZone(prev => ({
                 ...prev,
                 [zone]: [...(prev[zone] || []), member]
             }));
+            alert('Failed to delete walk-in. Please try again.');
         }
     };
 
